@@ -172,6 +172,16 @@
     font-size:1.3rem;
     color:var(--accent);
   }
+  @keyframes level-up-pulse{
+    0%, 100%{ box-shadow:none; border-color:var(--border); }
+    30%{ box-shadow:0 0 14px 2px rgba(240,240,0,0.7); border-color:var(--accent); }
+  }
+  .panel.level-up-flash{
+    animation:level-up-pulse 0.9s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .panel.level-up-flash{ animation:none; border-color:var(--accent); }
+  }
   canvas.mini{
     display:block;
     width:100%;
@@ -624,8 +634,13 @@
       score += LINE_SCORES[cleared] * (level + 1);
       lines += cleared;
       const newLevel = Math.floor(lines / 10);
-      if (newLevel !== level){ level = newLevel; }
-      sfxClear(cleared);
+      if (newLevel !== level){
+        level = newLevel;
+        sfxLevelUp();
+        flashLevelUp();
+      } else {
+        sfxClear(cleared);
+      }
       updateHud();
     }
     if (state === 'playing') spawnPiece();
@@ -932,14 +947,15 @@
   function beatSeconds(divisor){
     return divisor > 0 ? WHOLE_NOTE / divisor : (WHOLE_NOTE / Math.abs(divisor)) * 1.5;
   }
-  // simple bass vamp (Em-D-C-B7, i.e. E2-D2-C2-B1) cycling under the melody, one chord per measure
-  const BASS_CYCLE = ['E2','D2','C2','B1'];
+  // Melody only, matching the source note-for-note - no invented harmony
+  // that might clash with a key change we can't verify by ear.
+  let activeMusicOscillators = [];
 
   function ensureAudio(){
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     musicGain = audioCtx.createGain();
-    musicGain.gain.value = muted ? 0 : 0.12;
+    musicGain.gain.value = muted ? 0 : 0.16;
     musicGain.connect(audioCtx.destination);
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = muted ? 0 : 0.15;
@@ -959,23 +975,23 @@
     env.connect(gainNode);
     osc.start(startTime);
     osc.stop(startTime + duration + 0.02);
+    return osc;
   }
 
   function scheduleLoop(startTime){
+    // notes are scheduled with absolute AudioContext timestamps up front,
+    // so stopping requires stopping each oscillator directly (see
+    // stopMusic) - cancelling the setTimeout below only prevents the
+    // *next* loop from being scheduled, it does nothing to sound already
+    // in flight.
+    activeMusicOscillators = [];
     let t = startTime;
     for (const [note, divisor] of MELODY){
       const d = beatSeconds(divisor);
-      if (note) playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square');
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square'));
       t += d;
     }
     const loopDuration = t - startTime;
-
-    // bass: one chord per whole-note measure, cycled for the loop's full length
-    let measure = 0;
-    for (let tb = startTime; tb < startTime + loopDuration; tb += WHOLE_NOTE, measure++){
-      const note = BASS_CYCLE[measure % BASS_CYCLE.length];
-      playNote(NOTE_FREQ[note], tb, Math.min(WHOLE_NOTE, startTime + loopDuration - tb) * 0.85, musicGain, 'triangle');
-    }
 
     musicTimer = setTimeout(() => {
       if (musicPlaying) scheduleLoop(audioCtx.currentTime + 0.05);
@@ -993,6 +1009,11 @@
   function stopMusic(){
     musicPlaying = false;
     if (musicTimer) clearTimeout(musicTimer);
+    if (audioCtx){
+      const now = audioCtx.currentTime;
+      activeMusicOscillators.forEach(osc => { try { osc.stop(now); } catch(e){ /* already stopped */ } });
+    }
+    activeMusicOscillators = [];
   }
 
   function toggleMute(){
@@ -1019,6 +1040,16 @@
     if (!audioCtx || muted) return;
     const now = audioCtx.currentTime;
     [400, 300, 200, 100].forEach((f, i) => playNote(f, now + i * 0.15, 0.15, sfxGain, 'triangle'));
+  }
+  function sfxLevelUp(){
+    if (!audioCtx || muted) return;
+    const now = audioCtx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playNote(f, now + i * 0.09, 0.12, sfxGain, 'square'));
+  }
+  function flashLevelUp(){
+    levelEl.parentElement.classList.remove('level-up-flash');
+    void levelEl.parentElement.offsetWidth; // restart the animation if it's already mid-flash
+    levelEl.parentElement.classList.add('level-up-flash');
   }
 
   // ---------- input ----------
