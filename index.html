@@ -63,6 +63,7 @@
   .overlay{
     position:absolute;
     inset:0;
+    line-height:1.4;
     background:rgba(5,5,10,0.85);
     display:flex;
     flex-direction:column;
@@ -71,6 +72,8 @@
     text-align:center;
     gap:10px;
     padding:16px;
+    overflow-y:auto;
+    box-sizing:border-box;
   }
   .overlay[hidden]{display:none;}
   .overlay h2{
@@ -85,6 +88,57 @@
     line-height:1.5;
   }
   .overlay .score-line{color:var(--muted); font-size:0.8rem;}
+  .overlay .blurb{font-size:0.68rem; color:var(--muted); line-height:1.5;}
+  .overlay .prompt{color:var(--accent); font-size:0.8rem; letter-spacing:0.05em;}
+  .leaderboard{ width:100%; max-width:220px; }
+  .leaderboard h3{
+    margin:0 0 6px;
+    font-size:0.65rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .leaderboard ol{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .leaderboard li{
+    display:flex;
+    gap:8px;
+    font-size:0.72rem;
+    color:var(--text);
+    padding:2px 4px;
+  }
+  .leaderboard li.lb-empty{color:var(--muted); justify-content:center; font-size:0.68rem;}
+  .leaderboard li.lb-highlight{background:rgba(240,240,0,0.12); color:var(--accent);}
+  .leaderboard .lb-rank{color:var(--muted); width:1.4em; text-align:right; flex:0 0 auto;}
+  .leaderboard .lb-name{flex:1 1 auto; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .leaderboard .lb-score{flex:0 0 auto; font-variant-numeric:tabular-nums;}
+  #nameEntry{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  #nameEntry[hidden]{display:none;}
+  #nameInput{
+    font-family:inherit;
+    background:#000;
+    color:var(--accent);
+    border:2px solid var(--border);
+    padding:7px 10px;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    text-align:center;
+    text-transform:uppercase;
+    width:160px;
+    max-width:70vw;
+  }
+  #nameInput:focus{outline:none; border-color:var(--accent);}
   button{
     font-family:inherit;
     background:var(--panel);
@@ -207,6 +261,11 @@
     .side .panel .value{ font-size:0.85rem; }
     .side canvas.mini{ width:32px; height:32px; }
     .controls-list{ display:none; }
+    .overlay{ gap:6px; padding:8px; }
+    .overlay .blurb{ font-size:0.6rem; }
+    .leaderboard h3{ font-size:0.55rem; }
+    .leaderboard li{ font-size:0.62rem; }
+    #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
     .board-wrap{
       flex:1 1 auto;
       min-height:0;
@@ -268,7 +327,13 @@
     <canvas id="board" width="280" height="560"></canvas>
     <div class="overlay" id="startOverlay">
       <h2>TETRIS</h2>
-      <p>Arrow keys to move &amp; rotate<br>Space to hard drop</p>
+      <p class="blurb">Clear lines to score. Speed climbs every 10 lines,
+      just like the original.<br>Arrows move &amp; soft-drop, Up/X rotates,
+      Space hard-drops, C holds.</p>
+      <div class="leaderboard">
+        <h3>HIGH SCORES</h3>
+        <ol id="lbStart"></ol>
+      </div>
       <button id="startBtn">PRESS ENTER TO START</button>
     </div>
     <div class="overlay" id="pauseOverlay" hidden>
@@ -278,6 +343,15 @@
     <div class="overlay" id="overOverlay" hidden>
       <h2>GAME OVER</h2>
       <p class="score-line" id="finalScore">Score: 0</p>
+      <div id="nameEntry" hidden>
+        <p class="prompt">NEW HIGH SCORE!</p>
+        <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="YOUR NAME">
+        <button id="submitScoreBtn">SUBMIT</button>
+      </div>
+      <div class="leaderboard" id="lbOverWrap" hidden>
+        <h3>HIGH SCORES</h3>
+        <ol id="lbOver"></ol>
+      </div>
       <button id="restartBtn">PRESS ENTER TO RESTART</button>
     </div>
   </div>
@@ -369,6 +443,63 @@
   const finalScoreEl = document.getElementById('finalScore');
   const muteBtn = document.getElementById('muteBtn');
   const pauseBtn = document.getElementById('pauseBtn');
+  const lbStartEl = document.getElementById('lbStart');
+  const lbOverEl = document.getElementById('lbOver');
+  const lbOverWrap = document.getElementById('lbOverWrap');
+  const nameEntry = document.getElementById('nameEntry');
+  const nameInput = document.getElementById('nameInput');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const restartBtn = document.getElementById('restartBtn');
+
+  // ---------- leaderboard (local to this browser - static site, no server) ----------
+  const LEADERBOARD_KEY = 'tetris_leaderboard_v1';
+  const LEADERBOARD_MAX = 10;
+  const LEADERBOARD_SHOW = 5;
+
+  function loadLeaderboard(){
+    try {
+      const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e){ return []; }
+  }
+  function saveLeaderboard(list){
+    try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list)); } catch (e){ /* storage unavailable, ignore */ }
+  }
+  function qualifiesForLeaderboard(s){
+    if (s <= 0) return false;
+    const list = loadLeaderboard();
+    if (list.length < LEADERBOARD_MAX) return true;
+    return s > list[list.length - 1].score;
+  }
+  function addToLeaderboard(name, s){
+    const list = loadLeaderboard();
+    const entry = { name: name || 'ANON', score: s };
+    list.push(entry);
+    list.sort((a, b) => b.score - a.score);
+    list.length = Math.min(list.length, LEADERBOARD_MAX);
+    saveLeaderboard(list);
+    return { list, index: list.indexOf(entry) };
+  }
+  function renderLeaderboard(listEl, entries, highlightIndex){
+    listEl.innerHTML = '';
+    const shown = entries.slice(0, LEADERBOARD_SHOW);
+    if (shown.length === 0){
+      const li = document.createElement('li');
+      li.className = 'lb-empty';
+      li.textContent = 'No scores yet — be the first!';
+      listEl.appendChild(li);
+      return;
+    }
+    shown.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (i === highlightIndex) li.className = 'lb-highlight';
+      const rank = document.createElement('span'); rank.className = 'lb-rank'; rank.textContent = (i + 1) + '.';
+      const name = document.createElement('span'); name.className = 'lb-name'; name.textContent = String(e.name || '???').slice(0, 12);
+      const sc = document.createElement('span'); sc.className = 'lb-score'; sc.textContent = e.score;
+      li.append(rank, name, sc);
+      listEl.appendChild(li);
+    });
+  }
 
   // ---------- game state ----------
   let board, piece, nextType, holdType, canHold;
@@ -557,9 +688,33 @@
   function gameOver(){
     state = 'over';
     finalScoreEl.textContent = 'Score: ' + score;
-    overOverlay.hidden = false;
     stopMusic();
     sfxGameOver();
+
+    if (qualifiesForLeaderboard(score)){
+      nameEntry.hidden = false;
+      lbOverWrap.hidden = true;
+      restartBtn.hidden = true;
+      nameInput.value = '';
+      overOverlay.hidden = false;
+      setTimeout(() => nameInput.focus(), 50);
+    } else {
+      nameEntry.hidden = true;
+      lbOverWrap.hidden = false;
+      restartBtn.hidden = false;
+      renderLeaderboard(lbOverEl, loadLeaderboard(), -1);
+      overOverlay.hidden = false;
+    }
+  }
+
+  function submitScore(){
+    const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
+    const { list, index } = addToLeaderboard(name, score);
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = false;
+    restartBtn.hidden = false;
+    renderLeaderboard(lbOverEl, list, index);
+    renderLeaderboard(lbStartEl, list, -1);
   }
 
   function startGame(){
@@ -840,10 +995,17 @@
   const heldKeys = {};
 
   window.addEventListener('keydown', (e) => {
+    // while typing a name for the leaderboard, only Enter is ours - let the
+    // input field itself handle everything else (typing, cursor movement)
+    if (document.activeElement === nameInput){
+      if (e.code === 'Enter'){ e.preventDefault(); submitScore(); }
+      return;
+    }
+
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
 
     if (e.code === 'Enter'){
-      if (state === 'ready' || state === 'over') startGame();
+      if (state === 'ready' || (state === 'over' && nameEntry.hidden)) startGame();
       return;
     }
     if (e.code === 'KeyP'){ togglePause(); return; }
@@ -872,7 +1034,8 @@
   });
 
   document.getElementById('startBtn').addEventListener('click', startGame);
-  document.getElementById('restartBtn').addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  submitScoreBtn.addEventListener('click', submitScore);
   muteBtn.addEventListener('click', toggleMute);
   pauseBtn.addEventListener('click', togglePause);
 
@@ -896,6 +1059,7 @@
   // init empty board for initial render
   board = newBoard();
   updateHud();
+  renderLeaderboard(lbStartEl, loadLeaderboard(), -1);
   requestAnimationFrame(loop);
 })();
 </script>
