@@ -957,6 +957,28 @@
     ['A4',16],['C5',16],['A4',8],['E4',4],['E4',4],[null,4]
   ];
 
+  // The full recording isn't just this one verse looping - it's verse,
+  // verse, then a ~12.8s arpeggio interlude (melody rests, this pattern
+  // takes over) before repeating. Confirmed by pitch-tracking an actual
+  // recording of the piece: the verse's opening phrase reliably recurs
+  // every ~38.6s, not every ~12.8s, with this alternating figure filling
+  // the gap between each pair of verses - following the same chord
+  // changes as BASS above, one octave up, as a featured foreground line
+  // rather than background harmony.
+  const INTERLUDE = [
+    ['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],
+    ['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],
+
+    ['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],
+    ['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],
+
+    ['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],
+    ['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],['A3',8],['E4',8],
+
+    ['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],
+    ['GS3',8],['E4',8],['GS3',8],['E4',8],['GS3',8],['E4',8],['E4',4]
+  ];
+
   const BPM = 150;
   const WHOLE_NOTE = (60 / BPM) * 4; // seconds per whole note
   function beatSeconds(divisor){
@@ -1018,6 +1040,17 @@
     return noise;
   }
 
+  // Schedules one sequence starting at startTime, returns the time it ends.
+  function scheduleSequence(seq, startTime, type, peak){
+    let t = startTime;
+    for (const [note, divisor] of seq){
+      const d = beatSeconds(divisor);
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, type, peak));
+      t += d;
+    }
+    return t;
+  }
+
   function scheduleLoop(startTime){
     // notes are scheduled with absolute AudioContext timestamps up front,
     // so stopping requires stopping each oscillator directly (see
@@ -1025,29 +1058,19 @@
     // *next* loop from being scheduled, it does nothing to sound already
     // in flight.
     activeMusicOscillators = [];
-    let t = startTime;
-    for (const [note, divisor] of MELODY){
-      const d = beatSeconds(divisor);
-      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square', 1));
-      t += d;
-    }
-    const loopDuration = t - startTime;
 
-    let tb = startTime;
-    for (const [note, divisor] of BASS){
-      const d = beatSeconds(divisor);
-      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], tb, d * 0.9, musicGain, 'triangle', 0.8));
-      tb += d;
+    // verse, twice, all three layers in step (each totals exactly 32 beats)
+    let melEnd = startTime, bassEnd = startTime, harmEnd = startTime;
+    for (let i = 0; i < 2; i++){
+      melEnd = scheduleSequence(MELODY, melEnd, 'square', 1);
+      bassEnd = scheduleSequence(BASS, bassEnd, 'triangle', 0.8);
+      harmEnd = scheduleSequence(HARMONY, harmEnd, 'sawtooth', 0.35);
     }
+    // then the interlude once - melody and harmony rest, this takes over
+    const loopEnd = scheduleSequence(INTERLUDE, melEnd, 'triangle', 0.65);
+    const loopDuration = loopEnd - startTime;
 
-    let th = startTime;
-    for (const [note, divisor] of HARMONY){
-      const d = beatSeconds(divisor);
-      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], th, d * 0.9, musicGain, 'sawtooth', 0.35));
-      th += d;
-    }
-
-    // light hi-hat pulse, once per beat, for rhythmic drive
+    // light hi-hat pulse, once per beat for the whole cycle, for rhythmic drive
     const beatSec = WHOLE_NOTE / 4;
     for (let beat = 0, tp = startTime; tp < startTime + loopDuration; beat++, tp = startTime + beat * beatSec){
       activeMusicOscillators.push(playHat(tp, musicGain, 0.18));
