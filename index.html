@@ -1066,8 +1066,11 @@
       bassEnd = scheduleSequence(BASS, bassEnd, 'triangle', 0.8);
       harmEnd = scheduleSequence(HARMONY, harmEnd, 'sawtooth', 0.35);
     }
-    // then the interlude once - melody and harmony rest, this takes over
-    const loopEnd = scheduleSequence(INTERLUDE, melEnd, 'triangle', 0.65);
+    // then the interlude once - melody and harmony rest, this takes over as
+    // the featured line, so it gets the lead's own timbre/volume rather
+    // than the bass's triangle wave (which made it sound like nothing more
+    // than the bass pulse continuing, since it was the only voice left)
+    const loopEnd = scheduleSequence(INTERLUDE, melEnd, 'square', 1);
     const loopDuration = loopEnd - startTime;
 
     // light hi-hat pulse, once per beat for the whole cycle, for rhythmic drive
