@@ -313,40 +313,40 @@
       text-shadow:none;
     }
     .subtitle{ display:none; }
-    /* One info row (both .side blocks side by side, however far apart
-       they sit in the DOM) above the board, then the board takes every
-       remaining pixel of height - this is the whole "maximize the play
-       area" fix. A plain flex column here would put side-next (NEXT)
-       below the board as its own second row, costing the board a whole
-       row's worth of height for a single small panel; grid-template-areas
-       lets the two .side blocks share row 1 regardless of DOM order. */
+    /* A narrow info sidebar (both .side blocks stacked, however far apart
+       they sit in the DOM) on the left, board takes every remaining pixel
+       of width AND height - maximizes the play area further than a top
+       info row did, since the sidebar's width is much less than a full
+       row's height would have cost. grid-template-areas lets the two
+       .side blocks stack in column 1 regardless of DOM order (board sits
+       between them in the DOM); board spans both rows in column 2, so it
+       gets the auto row's leftover height (via the minmax(0,1fr) row)
+       plus the auto row's own height added back in - i.e. the full
+       height - not just the 1fr row's share. */
     .layout{
       flex:1 1 auto;
       min-height:0;
       width:100%;
       display:grid;
-      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-columns:auto minmax(0,1fr);
       grid-template-rows:auto minmax(0,1fr);
       grid-template-areas:
-        "stats next"
-        "board board";
+        "stats board"
+        "next  board";
       gap:4px;
     }
-    .side-stats{ grid-area:stats; }
-    .side-next{ grid-area:next; }
+    .side-stats{ grid-area:stats; align-self:start; }
+    .side-next{ grid-area:next; align-self:start; }
     .side{
-      width:auto; /* cancel the desktop 150px fixed width - stretch to fill the grid column instead */
+      width:auto; /* cancel the desktop 150px fixed width */
       flex:0 0 auto;
       display:flex;
-      flex-direction:row;
-      flex-wrap:wrap;
-      justify-content:center;
+      flex-direction:column;
       gap:4px;
     }
     .side .panel{
-      flex:1 1 60px;
-      min-width:52px;
-      padding:4px 6px;
+      width:56px;
+      padding:4px 5px;
     }
     .side .panel h3{ font-size:0.5rem; margin-bottom:2px; }
     .side .panel .value{ font-size:0.85rem; }
