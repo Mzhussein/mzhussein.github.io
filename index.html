@@ -50,14 +50,20 @@
   }
   .board-wrap{
     position:relative;
-    border:3px solid var(--border);
-    background:#000;
     line-height:0;
+    touch-action:none;
   }
+  /* The border/background live on the canvas itself, not .board-wrap -
+     .board-wrap can end up sized larger than the canvas (it flex-grows to
+     fill leftover space on short/mobile screens, see the media query
+     below), and if the border were on .board-wrap that extra space shows
+     as a black box visibly bigger than the actual 10x20 play field. */
   canvas#board{
     display:block;
     width:280px;
     height:560px;
+    border:3px solid var(--border);
+    background:#000;
     image-rendering:pixelated;
   }
   .overlay{
@@ -203,22 +209,88 @@
     flex-wrap:wrap;
     justify-content:center;
   }
+  /* Touch controls: a period-appropriate d-pad (left) + A/B buttons
+     (right), like a game pad, rather than a row of plain arrow buttons. */
   .touch-controls{
     display:none;
     margin-top:16px;
     width:280px;
     max-width:90vw;
   }
-  .touch-row{
+  .pad-row{
     display:flex;
-    gap:8px;
-    justify-content:center;
-    margin-bottom:8px;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
   }
-  .touch-controls button{
-    flex:1;
-    padding:14px 0;
-    font-size:1.1rem;
+  .dpad{
+    position:relative;
+    flex:0 0 auto;
+    width:120px;
+    height:120px;
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    grid-template-rows:1fr 1fr 1fr;
+    gap:2px;
+  }
+  .dpad-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin:0;
+    padding:0;
+    background:linear-gradient(180deg, #2c2c40, #18182490);
+    border:2px solid var(--border);
+    color:var(--text);
+    font-size:1.05rem;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .dpad-btn:active{
+    background:linear-gradient(180deg, #18182490, #2c2c40);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .dpad-up{ grid-column:2; grid-row:1; border-radius:6px 6px 0 0; }
+  .dpad-left{ grid-column:1; grid-row:2; border-radius:6px 0 0 6px; }
+  .dpad-right{ grid-column:3; grid-row:2; border-radius:0 6px 6px 0; }
+  .dpad-down{ grid-column:2; grid-row:3; border-radius:0 0 6px 6px; }
+  .dpad-center{ grid-column:2; grid-row:2; background:none; border:none; }
+  .ab-pad{
+    display:flex;
+    align-items:flex-end;
+    flex:0 0 auto;
+    gap:10px;
+  }
+  .ab-btn{
+    width:56px;
+    height:56px;
+    margin:0;
+    padding:0;
+    border-radius:50%;
+    background:linear-gradient(180deg, #3a3a54, #202032);
+    border:2px solid var(--border);
+    color:var(--accent);
+    font-size:1.15rem;
+    font-weight:bold;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .ab-btn:active{
+    background:linear-gradient(180deg, #202032, #3a3a54);
+    border-color:var(--accent);
+  }
+  .ab-a{ margin-bottom:14px; } /* diagonal offset, like a classic pad */
+  .touch-row-secondary{
+    display:flex;
+    justify-content:center;
+    margin-top:10px;
+  }
+  .touch-row-secondary button{
+    padding:8px 22px;
+    font-size:0.75rem;
   }
   footer{
     margin-top:26px;
@@ -286,7 +358,6 @@
       display:flex;
       align-items:center;
       justify-content:center;
-      touch-action:none;
     }
     canvas#board{
       width:auto;
@@ -302,8 +373,12 @@
       margin-top:4px;
       width:min(300px, 92vw);
     }
-    .touch-row{ margin-bottom:6px; }
-    .touch-controls button{ padding:9px 0; font-size:1rem; }
+    .dpad{ width:100px; height:100px; }
+    .dpad-btn{ font-size:0.9rem; }
+    .ab-btn{ width:46px; height:46px; font-size:1rem; }
+    .ab-a{ margin-bottom:10px; }
+    .touch-row-secondary{ margin-top:6px; }
+    .touch-row-secondary button{ padding:6px 16px; font-size:0.65rem; }
     footer{ display:none; }
   }
 </style>
@@ -396,15 +471,21 @@
 </div>
 
 <div class="touch-controls">
-  <div class="touch-row">
-    <button data-action="rotate">&#8635;</button>
-    <button data-action="hold">HOLD</button>
-    <button data-action="drop">&#8659;</button>
+  <div class="pad-row">
+    <div class="dpad">
+      <button class="dpad-btn dpad-up" data-action="drop" aria-label="Hard drop">&#9650;</button>
+      <button class="dpad-btn dpad-left" data-action="left" aria-label="Move left">&#9664;</button>
+      <div class="dpad-btn dpad-center" aria-hidden="true"></div>
+      <button class="dpad-btn dpad-right" data-action="right" aria-label="Move right">&#9654;</button>
+      <button class="dpad-btn dpad-down" data-action="down" aria-label="Soft drop">&#9660;</button>
+    </div>
+    <div class="ab-pad">
+      <button class="ab-btn ab-b" data-action="rotateccw" aria-label="Rotate left">B</button>
+      <button class="ab-btn ab-a" data-action="rotate" aria-label="Rotate right">A</button>
+    </div>
   </div>
-  <div class="touch-row">
-    <button data-action="left">&larr;</button>
-    <button data-action="down">&darr;</button>
-    <button data-action="right">&rarr;</button>
+  <div class="touch-row-secondary">
+    <button data-action="hold">HOLD</button>
   </div>
 </div>
 
@@ -1348,22 +1429,114 @@
   pauseBtn.addEventListener('click', togglePause);
   exitBtn.addEventListener('click', exitGame);
 
-  document.querySelectorAll('.touch-controls button').forEach(btn => {
-    btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleTouch(btn.dataset.action); }, {passive:false});
-    btn.addEventListener('click', () => handleTouch(btn.dataset.action));
+  // d-pad left/right/down repeat while held, matching the keyboard's DAS
+  // behavior - a single tap moves one cell, holding it moves continuously.
+  const REPEATABLE_TOUCH_ACTIONS = { left: () => moveX(-1), right: () => moveX(1), down: () => softDrop() };
+  document.querySelectorAll('.touch-controls button[data-action]').forEach(btn => {
+    const action = btn.dataset.action;
+    if (REPEATABLE_TOUCH_ACTIONS[action]){
+      const fn = REPEATABLE_TOUCH_ACTIONS[action];
+      const start = (e) => { if (e) e.preventDefault(); if (state !== 'playing') return; ensureAudio(); startRepeat(action, fn); };
+      const stop = (e) => { if (e) e.preventDefault(); clearRepeat(action); };
+      btn.addEventListener('touchstart', start, {passive:false});
+      btn.addEventListener('touchend', stop);
+      btn.addEventListener('touchcancel', stop);
+      btn.addEventListener('mousedown', start);
+      btn.addEventListener('mouseup', stop);
+      btn.addEventListener('mouseleave', stop);
+    } else {
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleTouch(action); }, {passive:false});
+      btn.addEventListener('click', () => handleTouch(action));
+    }
   });
   function handleTouch(action){
     if (state !== 'playing') return;
     ensureAudio();
     switch(action){
-      case 'left': moveX(-1); break;
-      case 'right': moveX(1); break;
-      case 'down': softDrop(); break;
       case 'rotate': rotate(1); break;
+      case 'rotateccw': rotate(-1); break;
       case 'drop': hardDrop(); break;
       case 'hold': hold(); break;
     }
   }
+
+  // ---------- touch controls: swipe/tap directly on the board ----------
+  // tap = rotate, dragging left/right/down moves/soft-drops one cell per
+  // cell-width crossed (so one long drag can cross several cells), a fast
+  // downward flick hard-drops, and a drag up holds the piece.
+  (function setupBoardGestures(){
+    const boardWrap = document.querySelector('.board-wrap');
+    let active = false;
+    let startX = 0, startY = 0, startTime = 0;
+    let refX = 0, refY = 0;
+    let lastX = 0, lastY = 0;
+    let moved = false;
+    let cellW = BLOCK, cellH = BLOCK;
+
+    function cellSize(){
+      const r = boardCanvas.getBoundingClientRect();
+      return { w: r.width / COLS, h: r.height / ROWS };
+    }
+
+    boardWrap.addEventListener('touchstart', (e) => {
+      if (state !== 'playing' || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      active = true;
+      moved = false;
+      startX = refX = lastX = t.clientX;
+      startY = refY = lastY = t.clientY;
+      startTime = performance.now();
+      const c = cellSize(); cellW = c.w; cellH = c.h;
+    }, {passive:true});
+
+    boardWrap.addEventListener('touchmove', (e) => {
+      if (!active || state !== 'playing') return;
+      const t = e.touches[0];
+      lastX = t.clientX; lastY = t.clientY;
+      const dx = lastX - refX;
+      const dy = lastY - refY;
+      if (Math.abs(dx) >= cellW){
+        const steps = Math.trunc(dx / cellW);
+        moved = true;
+        ensureAudio();
+        for (let i = 0; i < Math.abs(steps); i++) moveX(steps > 0 ? 1 : -1);
+        refX += steps * cellW;
+      }
+      if (dy >= cellH){
+        const steps = Math.trunc(dy / cellH);
+        moved = true;
+        ensureAudio();
+        for (let i = 0; i < steps; i++) softDrop();
+        refY += steps * cellH;
+      }
+      if (Math.abs(lastX - startX) > 6 || Math.abs(lastY - startY) > 6) e.preventDefault();
+    }, {passive:false});
+
+    boardWrap.addEventListener('touchend', (e) => {
+      if (!active) return;
+      active = false;
+      if (state !== 'playing') return;
+      // Use the touchend event's own coordinates rather than relying on
+      // touchmove having fired - a very fast flick can reach touchend with
+      // few or no intermediate touchmove events (coalesced by the browser),
+      // which would otherwise leave lastX/lastY stuck at the start position.
+      const ct = e.changedTouches && e.changedTouches[0];
+      if (ct){ lastX = ct.clientX; lastY = ct.clientY; }
+      const dt = performance.now() - startTime;
+      const totalDX = lastX - startX;
+      const totalDY = lastY - startY;
+      ensureAudio();
+      if (!moved && dt < 250 && Math.abs(totalDX) < 10 && Math.abs(totalDY) < 10){
+        rotate(1); // plain tap
+      } else if (totalDY < -cellH * 1.5 && Math.abs(totalDY) > Math.abs(totalDX)){
+        hold(); // dragged upward
+      } else if (totalDY > cellH * 3 && dt < 200 && totalDY > Math.abs(totalDX)){
+        hardDrop(); // fast downward flick
+      }
+    });
+
+    boardWrap.addEventListener('touchcancel', () => { active = false; });
+  })();
 
   // init empty board for initial render
   board = newBoard();
