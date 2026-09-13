@@ -303,15 +303,12 @@
       height:100vh;
       height:100dvh;
       overflow:hidden;
-      padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      padding:6px 10px calc(6px + env(safe-area-inset-bottom, 0px));
       justify-content:flex-start;
     }
-    h1{
-      font-size:1.05rem;
-      letter-spacing:0.2em;
-      margin:0;
-      text-shadow:none;
-    }
+    /* The title costs a whole line of height for pure decoration - on
+       mobile that's better spent on bigger, easier-to-hit controls. */
+    h1{ display:none; }
     .subtitle{ display:none; }
     /* A narrow info sidebar (both .side blocks stacked, however far apart
        they sit in the DOM) on the left, board takes every remaining pixel
@@ -333,7 +330,7 @@
       grid-template-areas:
         "stats board"
         "next  board";
-      gap:4px;
+      gap:2px;
     }
     .side-stats{ grid-area:stats; align-self:start; }
     .side-next{ grid-area:next; align-self:start; }
@@ -375,19 +372,19 @@
       max-width:90vw;
       max-height:100%;
     }
-    .toolbar{ flex:0 0 auto; margin-top:2px; gap:6px; }
-    .toolbar button{ padding:5px 10px; font-size:0.65rem; }
+    .toolbar{ flex:0 0 auto; margin-top:1px; gap:6px; }
+    .toolbar button{ padding:4px 10px; font-size:0.62rem; }
     .touch-controls{
       display:block;
       flex:0 0 auto;
-      margin-top:4px;
-      width:min(300px, 92vw);
+      margin-top:2px;
+      width:min(340px, 96vw);
     }
-    .dpad{ width:100px; height:100px; }
-    .dpad-btn{ font-size:0.9rem; }
-    .dpad-up{ font-size:0.56rem; }
-    .ab-btn{ width:46px; height:46px; font-size:0.56rem; }
-    .ab-a{ margin-bottom:10px; }
+    .dpad{ width:128px; height:128px; }
+    .dpad-btn{ font-size:1rem; }
+    .dpad-up{ font-size:0.62rem; }
+    .ab-btn{ width:58px; height:58px; font-size:0.62rem; }
+    .ab-a{ margin-bottom:12px; }
     footer{ display:none; }
   }
 </style>
