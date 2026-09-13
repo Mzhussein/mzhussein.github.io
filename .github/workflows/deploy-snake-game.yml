@@ -1,0 +1,28 @@
+name: Deploy Snake to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'snake/index.html'
+      - 'deploy/snake-game/**'
+      - '.github/workflows/deploy-snake-game.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage the static site
+        run: |
+          mkdir -p deploy/snake-game/public
+          cp snake/index.html deploy/snake-game/public/index.html
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: deploy/snake-game
+          command: deploy

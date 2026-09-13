@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Snake</title>
+<style>
+  :root{
+    --bg:#0b0b0a;
+    --panel:#141410;
+    --border:#2a2a20;
+    --text:#e8e8e0;
+    --accent:#9bab6a;
+    --muted:#7a7a68;
+    --lcd-bg:#9bab6a;
+    --lcd-ink:#33401f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Courier New', 'Consolas', monospace;
+    min-height:100%;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px 12px 40px;
+  }
+  h1{
+    letter-spacing:0.3em;
+    font-size:2rem;
+    margin:0 0 4px;
+    color:var(--accent);
+    text-shadow:0 0 8px rgba(155,171,106,0.35);
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:0.75rem;
+    margin-bottom:18px;
+    text-align:center;
+  }
+  .layout{
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  /* The board's on-screen size is computed in JS (resizeCanvas), not via
+     CSS percentage/max-width tricks - board-wrap just needs to report a
+     real, flexible size via ordinary flex-grow, which is a much more
+     reliable pattern than relying on a replaced element's own percentage
+     sizing (that bit two earlier builds in this family: Tetris and
+     Asteroids each had a bug where a board-wrap needed an *explicit*
+     height for a percentage-sized canvas child to resolve against,
+     because of how flex/grid percentage-height resolution works). Doing
+     the arithmetic directly in JS sidesteps that whole class of bug, at
+     every breakpoint, not just mobile - which is the one thing the
+     Asteroids build got wrong until a follow-up fix. */
+  .board-wrap{
+    position:relative;
+    width:min(85vw, 920px);
+    height:min(70vh, 560px);
+    max-width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    touch-action:none;
+  }
+  canvas#board{
+    display:block;
+    background:var(--lcd-bg);
+    border:3px solid var(--border);
+    image-rendering:pixelated;
+  }
+  .overlay{
+    position:absolute;
+    inset:0;
+    line-height:1.4;
+    background:rgba(0,0,0,0.85);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:10px;
+    padding:16px;
+    overflow-y:auto;
+    box-sizing:border-box;
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h2{
+    margin:0;
+    color:var(--accent);
+    letter-spacing:0.15em;
+  }
+  .overlay p{
+    margin:0;
+    color:var(--text);
+    font-size:0.85rem;
+    line-height:1.5;
+  }
+  .overlay .score-line{color:var(--muted); font-size:0.8rem;}
+  .overlay .blurb{font-size:0.68rem; color:var(--muted); line-height:1.5;}
+  .overlay .prompt{color:var(--accent); font-size:0.8rem; letter-spacing:0.05em;}
+  .overlay .name-error{color:#f06060; font-size:0.68rem;}
+  .leaderboard{ width:100%; max-width:220px; }
+  .leaderboard h3{
+    margin:0 0 6px;
+    font-size:0.65rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .leaderboard ol{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .leaderboard li{
+    display:flex;
+    gap:8px;
+    font-size:0.72rem;
+    color:var(--text);
+    padding:2px 4px;
+  }
+  .leaderboard li.lb-empty{color:var(--muted); justify-content:center; font-size:0.68rem;}
+  .leaderboard li.lb-highlight{background:rgba(155,171,106,0.15); color:var(--accent);}
+  .leaderboard .lb-rank{color:var(--muted); width:1.4em; text-align:right; flex:0 0 auto;}
+  .leaderboard .lb-name{flex:1 1 auto; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .leaderboard .lb-score{flex:0 0 auto; font-variant-numeric:tabular-nums;}
+  #nameEntry{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  #nameEntry[hidden]{display:none;}
+  #nameInput{
+    font-family:inherit;
+    background:#000;
+    color:var(--accent);
+    border:2px solid var(--border);
+    padding:7px 10px;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    text-align:center;
+    text-transform:uppercase;
+    width:160px;
+    max-width:70vw;
+  }
+  #nameInput:focus{outline:none; border-color:var(--accent);}
+  button{
+    font-family:inherit;
+    background:var(--panel);
+    color:var(--text);
+    border:2px solid var(--border);
+    padding:8px 16px;
+    cursor:pointer;
+    font-size:0.85rem;
+    letter-spacing:0.05em;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  .side{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    width:150px;
+  }
+  .panel{
+    background:var(--panel);
+    border:2px solid var(--border);
+    padding:10px 12px;
+  }
+  .panel h3{
+    margin:0 0 8px;
+    font-size:0.7rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .panel .value{
+    font-size:1.3rem;
+    color:var(--accent);
+  }
+  @keyframes level-up-pulse{
+    0%, 100%{ box-shadow:none; border-color:var(--border); }
+    30%{ box-shadow:0 0 14px 2px rgba(155,171,106,0.7); border-color:var(--accent); }
+  }
+  .panel.level-up-flash{
+    animation:level-up-pulse 0.9s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .panel.level-up-flash{ animation:none; border-color:var(--accent); }
+  }
+  .controls-list{
+    font-size:0.7rem;
+    color:var(--muted);
+    line-height:1.7;
+  }
+  .controls-list b{color:var(--text);}
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .touch-controls{
+    display:none;
+    margin-top:16px;
+    width:160px;
+    max-width:60vw;
+  }
+  .dpad{
+    position:relative;
+    width:160px;
+    height:160px;
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    grid-template-rows:1fr 1fr 1fr;
+    gap:2px;
+    margin:0 auto;
+  }
+  .dpad-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin:0;
+    padding:0;
+    background:linear-gradient(180deg, #22261a, #12140d);
+    border:2px solid var(--border);
+    color:var(--text);
+    font-size:1.4rem;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .dpad-btn:active{
+    background:linear-gradient(180deg, #12140d, #22261a);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .dpad-up{ grid-column:2; grid-row:1; border-radius:6px 6px 0 0; }
+  .dpad-left{ grid-column:1; grid-row:2; border-radius:6px 0 0 6px; }
+  .dpad-right{ grid-column:3; grid-row:2; border-radius:0 6px 6px 0; }
+  .dpad-down{ grid-column:2; grid-row:3; border-radius:0 0 6px 6px; }
+  .dpad-center{ grid-column:2; grid-row:2; background:none; border:none; }
+  footer{
+    margin-top:26px;
+    color:var(--muted);
+    font-size:0.65rem;
+    text-align:center;
+    max-width:480px;
+    line-height:1.6;
+  }
+  /* Small / short screens: collapse into one column. The board's own
+     size is still computed in JS (see the .board-wrap comment above) -
+     this block only rearranges everything else around it. */
+  @media (max-width: 760px), (max-height: 750px){
+    html, body{ height:100%; }
+    body{
+      height:100vh;
+      height:100dvh;
+      overflow:hidden;
+      padding:4px 10px calc(4px + env(safe-area-inset-bottom, 0px));
+      justify-content:flex-start;
+    }
+    h1{ display:none; }
+    .subtitle{ display:none; }
+    .layout{
+      flex:1 1 auto;
+      min-height:0;
+      width:100%;
+      display:flex;
+      flex-direction:column;
+    }
+    .side{
+      width:auto;
+      flex:0 0 auto;
+      flex-direction:row;
+      justify-content:center;
+      gap:6px;
+    }
+    .side .panel{ padding:4px 8px; }
+    .side .panel h3{ font-size:0.5rem; margin-bottom:2px; }
+    .side .panel .value{ font-size:0.85rem; }
+    .controls-list{ display:none; }
+    .overlay{ gap:6px; padding:8px; }
+    .overlay .blurb{ font-size:0.6rem; }
+    .leaderboard h3{ font-size:0.55rem; }
+    .leaderboard li{ font-size:0.62rem; }
+    #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
+    .board-wrap{
+      flex:1 1 auto;
+      min-height:0;
+      min-width:0;
+      width:100%;
+      height:auto;
+    }
+    .toolbar{ flex:0 0 auto; margin-top:2px; gap:6px; }
+    .toolbar button{ padding:3px 9px; font-size:0.6rem; }
+    .touch-controls{
+      display:block;
+      flex:0 0 auto;
+      margin-top:2px;
+      width:140px;
+    }
+    .dpad{ width:140px; height:140px; }
+    footer{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>SNAKE</h1>
+<div class="subtitle">a small, junk-free recreation of the Nokia 3310 classic</div>
+
+<div class="layout">
+
+  <div class="side">
+    <div class="panel">
+      <h3>SCORE</h3>
+      <div class="value" id="score">0</div>
+    </div>
+    <div class="panel">
+      <h3>SPEED</h3>
+      <div class="value" id="speedLevel">1</div>
+    </div>
+    <div class="panel controls-list">
+      <h3>CONTROLS</h3>
+      <div><b>&larr; &rarr; &uarr; &darr;</b> steer</div>
+      <div><b>WASD</b> also works</div>
+      <div><b>P</b> pause</div>
+      <div><b>Esc</b> exit</div>
+      <div><b>M</b> mute</div>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board"></canvas>
+    <div class="overlay" id="startOverlay">
+      <h2>SNAKE</h2>
+      <p class="blurb">Eat the food to grow. Don't hit the wall or
+      yourself - there's no wraparound here, just like the original.
+      Speed climbs as you grow.<br>Arrows/WASD to steer.</p>
+      <div class="leaderboard">
+        <h3>HIGH SCORES</h3>
+        <ol id="lbStart"></ol>
+      </div>
+      <button id="startBtn">PRESS ENTER TO START</button>
+    </div>
+    <div class="overlay" id="pauseOverlay" hidden>
+      <h2>PAUSED</h2>
+      <p>Press P to resume</p>
+    </div>
+    <div class="overlay" id="overOverlay" hidden>
+      <h2>GAME OVER</h2>
+      <p class="score-line" id="finalScore">Score: 0</p>
+      <div id="nameEntry" hidden>
+        <p class="prompt">NEW HIGH SCORE!</p>
+        <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="YOUR NAME">
+        <button id="submitScoreBtn">SUBMIT</button>
+        <p class="name-error" id="nameError" hidden>Please choose a different name</p>
+      </div>
+      <div class="leaderboard" id="lbOverWrap" hidden>
+        <h3>HIGH SCORES</h3>
+        <ol id="lbOver"></ol>
+      </div>
+      <button id="restartBtn">PRESS ENTER TO RESTART</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="toolbar">
+  <button id="muteBtn">MUTE SOUND</button>
+  <button id="pauseBtn">PAUSE</button>
+  <button id="exitBtn" hidden>EXIT</button>
+</div>
+
+<div class="touch-controls">
+  <div class="dpad">
+    <button class="dpad-btn dpad-up" data-action="up" aria-label="Up">&#9650;</button>
+    <button class="dpad-btn dpad-left" data-action="left" aria-label="Left">&#9664;</button>
+    <div class="dpad-btn dpad-center" aria-hidden="true"></div>
+    <button class="dpad-btn dpad-right" data-action="right" aria-label="Right">&#9654;</button>
+    <button class="dpad-btn dpad-down" data-action="down" aria-label="Down">&#9660;</button>
+  </div>
+</div>
+
+<footer>
+  Snake is a classic mobile phone game popularized by Nokia; this is an
+  unofficial, from-scratch fan recreation built for personal/educational
+  use &mdash; no original code or assets, no ads, no trackers. All sound
+  is synthesized live in the browser.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- constants ----------
+  // Two grid shapes, picked at runtime by whichever the available board
+  // space actually is (see pickGridForViewport) - the original hardware
+  // only ever had one aspect ratio (84x48, ~1.75:1, matched by LANDSCAPE
+  // below), but a phone held upright is portrait-shaped, and forcing that
+  // wide a grid into it leaves a lot of the screen empty above/below the
+  // board. PORTRAIT keeps the same "chunky LCD" feel, just reflowed to
+  // actually fill a tall narrow screen instead of letterboxing inside it.
+  const GRID_LANDSCAPE = { cols: 28, rows: 16 }; // ~ Nokia 3310's 84x48 LCD ratio
+  const GRID_PORTRAIT  = { cols: 16, rows: 24 };
+  let GRID_COLS = GRID_LANDSCAPE.cols, GRID_ROWS = GRID_LANDSCAPE.rows;
+  const TICK_START = 150;   // ms per move, at game start
+  const TICK_MIN = 70;      // ms per move, fastest the game gets
+  const TICK_STEP = 8;      // ms faster per speed-up
+  const SPEED_UP_EVERY = 4; // apples eaten per speed-up
+  const FOOD_SCORE = 10;
+
+  // ---------- canvas / responsive sizing ----------
+  // The board's on-screen pixel size is computed directly here (fit the
+  // current GRID_COLS:GRID_ROWS aspect ratio into whatever box board-wrap
+  // reports), rather than via CSS max-width/height on the canvas itself -
+  // see the .board-wrap CSS comment for why.
+  const boardCanvas = document.getElementById('board');
+  const ctx = boardCanvas.getContext('2d');
+  const boardWrapEl = document.querySelector('.board-wrap');
+  let cell = 20; // current on-screen size of one grid cell, in CSS px
+
+  // Only actually switches GRID_COLS/GRID_ROWS (and re-seeds the game)
+  // when it's safe to do so - mid-round is left alone so an in-progress
+  // snake/food layout never gets invalidated by a resize.
+  function pickGridForViewport(){
+    const rect = boardWrapEl.getBoundingClientRect();
+    const wantPortrait = rect.height > rect.width;
+    const wanted = wantPortrait ? GRID_PORTRAIT : GRID_LANDSCAPE;
+    if (wanted.cols === GRID_COLS && wanted.rows === GRID_ROWS) return;
+    if (state === 'playing') return;
+    GRID_COLS = wanted.cols;
+    GRID_ROWS = wanted.rows;
+    resetGame();
+  }
+
+  function resizeCanvas(){
+    pickGridForViewport();
+    const rect = boardWrapEl.getBoundingClientRect();
+    const availW = Math.max(80, rect.width);
+    const availH = Math.max(60, rect.height);
+    const aspect = GRID_COLS / GRID_ROWS;
+    let w = availW, h = availW / aspect;
+    if (h > availH){ h = availH; w = availH * aspect; }
+    w = Math.floor(w); h = Math.floor(h);
+    cell = w / GRID_COLS;
+    const dpr = window.devicePixelRatio || 1;
+    boardCanvas.style.width = w + 'px';
+    boardCanvas.style.height = h + 'px';
+    boardCanvas.width = Math.max(1, Math.floor(w * dpr));
+    boardCanvas.height = Math.max(1, Math.floor(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (state !== 'playing' && snake) draw();
+  }
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', resizeCanvas);
+
+  // ---------- game state ----------
+  let snake, dir, nextDir, food, score, speedLevel, tickInterval;
+  let tickTimer = null;
+  let state = 'ready'; // ready | playing | paused | over
+
+  function rand(min, max){ return Math.floor(min + Math.random() * (max - min)); }
+
+  function randomFood(){
+    let pos;
+    do {
+      pos = { x: rand(0, GRID_COLS), y: rand(0, GRID_ROWS) };
+    } while (snake.some(seg => seg.x === pos.x && seg.y === pos.y));
+    return pos;
+  }
+
+  function resetGame(){
+    const cx = Math.floor(GRID_COLS / 2), cy = Math.floor(GRID_ROWS / 2);
+    snake = [ {x:cx,y:cy}, {x:cx-1,y:cy}, {x:cx-2,y:cy} ];
+    dir = { x: 1, y: 0 };
+    nextDir = { x: 1, y: 0 };
+    score = 0;
+    speedLevel = 1;
+    tickInterval = TICK_START;
+    food = randomFood();
+    updateHud();
+  }
+
+  // Validated against the snake's actual current heading (dir), not
+  // whatever direction change might already be queued (nextDir) - that
+  // way even two direction changes typed in quick succession, both
+  // before the next tick applies, can never add up to a same-tick
+  // reversal into the snake's own neck. nextDir can be freely overwritten
+  // as many times as the player likes before the next tick consumes it.
+  function setDirection(dx, dy){
+    if (state !== 'playing') return;
+    if (dx === -dir.x && dy === -dir.y) return; // can't reverse into the neck
+    nextDir = { x: dx, y: dy };
+  }
+
+  function tick(){
+    dir = nextDir;
+    const head = snake[0];
+    const newHead = { x: head.x + dir.x, y: head.y + dir.y };
+
+    // wall collision - no wraparound, matching the original
+    if (newHead.x < 0 || newHead.x >= GRID_COLS || newHead.y < 0 || newHead.y >= GRID_ROWS){
+      gameOver();
+      return;
+    }
+    // self collision (check the whole body, including the tail cell,
+    // since the tail hasn't moved out of the way yet at this point)
+    if (snake.some(seg => seg.x === newHead.x && seg.y === newHead.y)){
+      gameOver();
+      return;
+    }
+
+    snake.unshift(newHead);
+    if (newHead.x === food.x && newHead.y === food.y){
+      score += FOOD_SCORE;
+      sfxEat();
+      if (score / FOOD_SCORE % SPEED_UP_EVERY === 0){
+        speedLevel++;
+        tickInterval = Math.max(TICK_MIN, tickInterval - TICK_STEP);
+        sfxLevelUp();
+        flashPanel();
+        restartTickTimer();
+      }
+      food = randomFood();
+      updateHud();
+    } else {
+      snake.pop();
+    }
+
+    draw();
+  }
+
+  function restartTickTimer(){
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = setInterval(tick, tickInterval);
+  }
+  function stopTickTimer(){
+    if (tickTimer) clearInterval(tickTimer);
+    tickTimer = null;
+  }
+
+  // ---------- HUD ----------
+  const scoreEl = document.getElementById('score');
+  const speedLevelEl = document.getElementById('speedLevel');
+  function updateHud(){
+    scoreEl.textContent = score;
+    speedLevelEl.textContent = speedLevel;
+  }
+  function flashPanel(){
+    const target = speedLevelEl.parentElement;
+    target.classList.remove('level-up-flash');
+    void target.offsetWidth;
+    target.classList.add('level-up-flash');
+  }
+
+  // ---------- drawing ----------
+  function draw(){
+    const w = GRID_COLS * cell, h = GRID_ROWS * cell;
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--lcd-bg').trim() || '#9bab6a';
+    ctx.fillRect(0, 0, w, h);
+    const ink = getComputedStyle(document.documentElement).getPropertyValue('--lcd-ink').trim() || '#33401f';
+    ctx.fillStyle = ink;
+
+    const pad = Math.max(1, cell * 0.08);
+    for (const seg of snake){
+      ctx.fillRect(seg.x * cell + pad, seg.y * cell + pad, cell - pad * 2, cell - pad * 2);
+    }
+    // food drawn slightly inset differently (a small diamond) so it
+    // reads as distinct from the snake's body blocks
+    const fx = food.x * cell + cell / 2, fy = food.y * cell + cell / 2;
+    const r = cell * 0.32;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy - r);
+    ctx.lineTo(fx + r, fy);
+    ctx.lineTo(fx, fy + r);
+    ctx.lineTo(fx - r, fy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---------- leaderboard ----------
+  const LEADERBOARD_API = 'https://snake-leaderboard.mzhussein42.workers.dev/leaderboard';
+  const LEADERBOARD_KEY = 'snake_leaderboard_v1';
+  const LEADERBOARD_MAX = 10;
+  const LEADERBOARD_SHOW = 5;
+
+  const BANNED_SUBSTRINGS = [
+    'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
+    'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
+    'nazi', 'hitler', 'kike', 'chink', 'spic', 'wetback', 'tranny',
+  ];
+  function normalizeForFilter(s){
+    return String(s)
+      .toLowerCase()
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+      .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+      .replace(/@/g, 'a').replace(/\$/g, 's')
+      .replace(/[^a-z]/g, '');
+  }
+  function isBannedName(name){
+    const n = normalizeForFilter(name);
+    return BANNED_SUBSTRINGS.some((w) => n.includes(w));
+  }
+  const ANON_SUBSTRINGS = [
+    'anon', 'anonymous', 'unknown', 'nobody', 'noone', 'nameless', 'noname', 'incognito',
+  ];
+  function isAnonName(name){
+    const n = normalizeForFilter(name);
+    return ANON_SUBSTRINGS.some((w) => n.includes(w));
+  }
+
+  function loadLocalLeaderboard(){
+    try {
+      const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e){ return []; }
+  }
+  function saveLocalLeaderboard(list){
+    try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list)); } catch (e){ /* storage unavailable, ignore */ }
+  }
+  function addToLocalLeaderboard(name, s){
+    const list = loadLocalLeaderboard();
+    list.push({ name: name || 'ANON', score: s });
+    list.sort((a, b) => b.score - a.score);
+    list.length = Math.min(list.length, LEADERBOARD_MAX);
+    saveLocalLeaderboard(list);
+    return list;
+  }
+  async function loadLeaderboard(){
+    try {
+      const res = await fetch(LEADERBOARD_API);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return list;
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return loadLocalLeaderboard();
+  }
+  async function qualifiesForLeaderboard(s){
+    if (s <= 0) return false;
+    const list = await loadLeaderboard();
+    if (list.length < LEADERBOARD_MAX) return true;
+    return s > list[list.length - 1].score;
+  }
+  async function addToLeaderboard(name, s){
+    try {
+      const res = await fetch(LEADERBOARD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || 'ANON', score: s }),
+      });
+      if (res.status === 400){
+        const body = await res.json().catch(() => ({}));
+        if (body && body.error === 'inappropriate name') return { rejected: true, reason: 'inappropriate' };
+        if (body && body.error === 'anonymous name') return { rejected: true, reason: 'anonymous' };
+      }
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return { list };
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return { list: addToLocalLeaderboard(name, s) };
+  }
+  function renderLeaderboard(listEl, entries, highlightIndex){
+    listEl.innerHTML = '';
+    const shown = entries.slice(0, LEADERBOARD_SHOW);
+    if (shown.length === 0){
+      const li = document.createElement('li');
+      li.className = 'lb-empty';
+      li.textContent = 'No scores yet — be the first!';
+      listEl.appendChild(li);
+      return;
+    }
+    shown.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (i === highlightIndex) li.className = 'lb-highlight';
+      const rank = document.createElement('span'); rank.className = 'lb-rank'; rank.textContent = (i + 1) + '.';
+      const name = document.createElement('span'); name.className = 'lb-name'; name.textContent = String(e.name || '???').slice(0, 12);
+      const sc = document.createElement('span'); sc.className = 'lb-score'; sc.textContent = e.score;
+      li.appendChild(rank); li.appendChild(name); li.appendChild(sc);
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- audio ----------
+  let audioCtx = null;
+  let sfxGain;
+  let muted = false;
+
+  function ensureAudio(){
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = muted ? 0 : 0.22;
+    sfxGain.connect(audioCtx.destination);
+  }
+  function beep(freq, duration, type, peak){
+    if (!audioCtx || muted) return;
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    const t = audioCtx.currentTime;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(peak === undefined ? 1 : peak, t + 0.008);
+    env.gain.linearRampToValueAtTime(0, t + duration);
+    osc.connect(env); env.connect(sfxGain);
+    osc.start(t); osc.stop(t + duration + 0.02);
+  }
+  function sfxEat(){ beep(880, 0.06, 'square', 0.5); }
+  function sfxLevelUp(){
+    if (!audioCtx || muted) return;
+    [660, 880, 1100].forEach((f, i) => setTimeout(() => beep(f, 0.09, 'square', 0.5), i * 40));
+  }
+  function sfxGameOver(){
+    if (!audioCtx || muted) return;
+    [440, 330, 220].forEach((f, i) => setTimeout(() => beep(f, 0.18, 'square', 0.5), i * 110));
+  }
+  function toggleMute(){
+    muted = !muted;
+    if (sfxGain) sfxGain.gain.value = muted ? 0 : 0.22;
+    muteBtn.textContent = muted ? 'UNMUTE SOUND' : 'MUTE SOUND';
+  }
+
+  // ---------- overlays / elements ----------
+  const startOverlay = document.getElementById('startOverlay');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const finalScoreEl = document.getElementById('finalScore');
+  const lbStartEl = document.getElementById('lbStart');
+  const lbOverEl = document.getElementById('lbOver');
+  const lbOverWrap = document.getElementById('lbOverWrap');
+  const nameEntry = document.getElementById('nameEntry');
+  const nameInput = document.getElementById('nameInput');
+  const nameErrorEl = document.getElementById('nameError');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const exitBtn = document.getElementById('exitBtn');
+
+  let gameOverToken = 0;
+
+  async function gameOver(){
+    state = 'over';
+    stopTickTimer();
+    const finalScore = score;
+    const myToken = ++gameOverToken;
+    finalScoreEl.textContent = 'Score: ' + finalScore;
+    sfxGameOver();
+
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = true;
+    restartBtn.hidden = true;
+    exitBtn.hidden = true;
+    overOverlay.hidden = false;
+    draw();
+
+    const qualifies = await qualifiesForLeaderboard(finalScore);
+    if (myToken !== gameOverToken) return;
+
+    if (qualifies){
+      nameEntry.hidden = false;
+      nameInput.value = '';
+      nameErrorEl.hidden = true;
+      setTimeout(() => nameInput.focus(), 50);
+    } else {
+      lbOverWrap.hidden = false;
+      renderLeaderboard(lbOverEl, await loadLeaderboard(), -1);
+      restartBtn.hidden = false;
+    }
+    if (myToken !== gameOverToken) return;
+  }
+
+  async function submitScore(){
+    const finalScore = score;
+    const myToken = gameOverToken;
+    const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
+
+    if (isAnonName(name)){
+      nameErrorEl.textContent = "No hiding - you can't hide behind your shame. Enter a real name.";
+      nameErrorEl.hidden = false;
+      return;
+    }
+    if (isBannedName(name)){
+      nameErrorEl.textContent = 'Please choose a different name.';
+      nameErrorEl.hidden = false;
+      return;
+    }
+    nameErrorEl.hidden = true;
+
+    submitScoreBtn.disabled = true;
+    const result = await addToLeaderboard(name, finalScore);
+    submitScoreBtn.disabled = false;
+    if (myToken !== gameOverToken) return;
+
+    if (result.rejected){
+      nameErrorEl.textContent = result.reason === 'anonymous'
+        ? "No hiding - you can't hide behind your shame. Enter a real name."
+        : 'Please choose a different name.';
+      nameErrorEl.hidden = false;
+      return;
+    }
+
+    const list = result.list;
+    const index = list.findIndex(e => e.name === name && e.score === finalScore);
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = false;
+    restartBtn.hidden = false;
+    renderLeaderboard(lbOverEl, list, index);
+    renderLeaderboard(lbStartEl, list, -1);
+  }
+
+  function startGame(){
+    resizeCanvas();
+    resetGame();
+    state = 'playing';
+    startOverlay.hidden = true;
+    overOverlay.hidden = true;
+    pauseOverlay.hidden = true;
+    exitBtn.hidden = false;
+    ensureAudio();
+    draw();
+    restartTickTimer();
+  }
+
+  function togglePause(){
+    if (state === 'playing'){
+      state = 'paused';
+      pauseOverlay.hidden = false;
+      stopTickTimer();
+    } else if (state === 'paused'){
+      state = 'playing';
+      pauseOverlay.hidden = true;
+      restartTickTimer();
+    }
+  }
+
+  function exitGame(){
+    if (state !== 'playing' && state !== 'paused') return;
+    state = 'ready';
+    stopTickTimer();
+    pauseOverlay.hidden = true;
+    overOverlay.hidden = true;
+    exitBtn.hidden = true;
+    startOverlay.hidden = false;
+    loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+  }
+
+  // ---------- input ----------
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement === nameInput){
+      if (e.code === 'Enter'){ e.preventDefault(); submitScore(); }
+      return;
+    }
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+
+    if (e.code === 'Enter'){
+      if (state === 'ready' || (state === 'over' && !restartBtn.hidden)) startGame();
+      return;
+    }
+    if (e.code === 'KeyP'){ togglePause(); return; }
+    if (e.code === 'KeyM'){ toggleMute(); return; }
+    if (e.code === 'Escape'){ exitGame(); return; }
+
+    switch (e.code){
+      case 'ArrowLeft': case 'KeyA': setDirection(-1, 0); break;
+      case 'ArrowRight': case 'KeyD': setDirection(1, 0); break;
+      case 'ArrowUp': case 'KeyW': setDirection(0, -1); break;
+      case 'ArrowDown': case 'KeyS': setDirection(0, 1); break;
+    }
+  });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  submitScoreBtn.addEventListener('click', submitScore);
+  muteBtn.addEventListener('click', toggleMute);
+  pauseBtn.addEventListener('click', togglePause);
+  exitBtn.addEventListener('click', exitGame);
+
+  document.querySelectorAll('.touch-controls button[data-action]').forEach(btn => {
+    const action = btn.dataset.action;
+    const fire = (e) => {
+      if (e) e.preventDefault();
+      ensureAudio();
+      if (action === 'left') setDirection(-1, 0);
+      else if (action === 'right') setDirection(1, 0);
+      else if (action === 'up') setDirection(0, -1);
+      else if (action === 'down') setDirection(0, 1);
+    };
+    btn.addEventListener('touchstart', fire, {passive:false});
+    btn.addEventListener('click', fire);
+  });
+
+  // swipe-to-steer directly on the board, in addition to the d-pad
+  (function setupSwipe(){
+    let startX = 0, startY = 0, active = false;
+    boardWrapEl.addEventListener('touchstart', (e) => {
+      if (state !== 'playing' || e.touches.length !== 1) return;
+      active = true;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, {passive:true});
+    boardWrapEl.addEventListener('touchend', (e) => {
+      if (!active) return;
+      active = false;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - startX, dy = t.clientY - startY;
+      if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return; // too small to count as a swipe
+      ensureAudio();
+      if (Math.abs(dx) > Math.abs(dy)) setDirection(dx > 0 ? 1 : -1, 0);
+      else setDirection(0, dy > 0 ? 1 : -1);
+    });
+  })();
+
+  // ---------- init ----------
+  resetGame(); // seed snake/food before the first resizeCanvas() call, since
+               // that can itself trigger a conditional draw()
+  resizeCanvas();
+  draw();
+  loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+
+  // Debug hook - read-only game state for automated testing.
+  window.__snakeDebug = {
+    getState: () => ({ state, score, speedLevel, tickInterval, snake: snake.map(s => ({...s})), dir: {...dir}, food: {...food} }),
+  };
+})();
+</script>
+</body>
+</html>
