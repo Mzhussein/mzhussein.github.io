@@ -243,10 +243,13 @@
     border:2px solid var(--border);
     color:var(--text);
     font-size:1.05rem;
+    font-weight:bold;
+    letter-spacing:0;
     user-select:none;
     -webkit-user-select:none;
     -webkit-tap-highlight-color:transparent;
   }
+  .dpad-up{ font-size:0.62rem; }
   .dpad-btn:active{
     background:linear-gradient(180deg, #18182490, #2c2c40);
     border-color:var(--accent);
@@ -272,7 +275,8 @@
     background:linear-gradient(180deg, #3a3a54, #202032);
     border:2px solid var(--border);
     color:var(--accent);
-    font-size:1.15rem;
+    font-size:0.62rem;
+    letter-spacing:0.03em;
     font-weight:bold;
     user-select:none;
     -webkit-user-select:none;
@@ -309,18 +313,31 @@
       text-shadow:none;
     }
     .subtitle{ display:none; }
+    /* One info row (both .side blocks side by side, however far apart
+       they sit in the DOM) above the board, then the board takes every
+       remaining pixel of height - this is the whole "maximize the play
+       area" fix. A plain flex column here would put side-next (NEXT)
+       below the board as its own second row, costing the board a whole
+       row's worth of height for a single small panel; grid-template-areas
+       lets the two .side blocks share row 1 regardless of DOM order. */
     .layout{
       flex:1 1 auto;
       min-height:0;
       width:100%;
-      flex-direction:column;
-      flex-wrap:nowrap;
-      align-items:stretch;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-rows:auto minmax(0,1fr);
+      grid-template-areas:
+        "stats next"
+        "board board";
       gap:4px;
     }
+    .side-stats{ grid-area:stats; }
+    .side-next{ grid-area:next; }
     .side{
+      width:auto; /* cancel the desktop 150px fixed width - stretch to fill the grid column instead */
       flex:0 0 auto;
-      width:100%;
+      display:flex;
       flex-direction:row;
       flex-wrap:wrap;
       justify-content:center;
@@ -341,11 +358,13 @@
     .leaderboard li{ font-size:0.62rem; }
     #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
     .board-wrap{
-      flex:1 1 auto;
+      grid-area:board;
+      height:100%;
       min-height:0;
+      min-width:0;
       width:fit-content;
       max-width:100%;
-      align-self:center;
+      justify-self:center;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -366,7 +385,8 @@
     }
     .dpad{ width:100px; height:100px; }
     .dpad-btn{ font-size:0.9rem; }
-    .ab-btn{ width:46px; height:46px; font-size:1rem; }
+    .dpad-up{ font-size:0.56rem; }
+    .ab-btn{ width:46px; height:46px; font-size:0.56rem; }
     .ab-a{ margin-bottom:10px; }
     footer{ display:none; }
   }
@@ -379,7 +399,7 @@
 
 <div class="layout">
 
-  <div class="side">
+  <div class="side side-stats">
     <div class="panel">
       <h3>SCORE</h3>
       <div class="value" id="score">0</div>
@@ -432,7 +452,7 @@
     </div>
   </div>
 
-  <div class="side">
+  <div class="side side-next">
     <div class="panel">
       <h3>NEXT</h3>
       <canvas id="next" class="mini" width="100" height="100"></canvas>
@@ -462,15 +482,15 @@
 <div class="touch-controls">
   <div class="pad-row">
     <div class="dpad">
-      <button class="dpad-btn dpad-up" data-action="rotate" aria-label="Rotate">&#9650;</button>
+      <button class="dpad-btn dpad-up" data-action="rotate" aria-label="Rotate">ROT</button>
       <button class="dpad-btn dpad-left" data-action="left" aria-label="Move left">&#9664;</button>
       <div class="dpad-btn dpad-center" aria-hidden="true"></div>
       <button class="dpad-btn dpad-right" data-action="right" aria-label="Move right">&#9654;</button>
       <button class="dpad-btn dpad-down" data-action="down" aria-label="Soft drop">&#9660;</button>
     </div>
     <div class="ab-pad">
-      <button class="ab-btn ab-b" data-action="hold" aria-label="Hold">B</button>
-      <button class="ab-btn ab-a" data-action="drop" aria-label="Hard drop">A</button>
+      <button class="ab-btn ab-b" data-action="hold" aria-label="Hold">HOLD</button>
+      <button class="ab-btn ab-a" data-action="drop" aria-label="Hard drop">DROP</button>
     </div>
   </div>
 </div>
