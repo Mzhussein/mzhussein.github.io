@@ -1,0 +1,14 @@
+name = "tetris-game"
+compatibility_date = "2024-11-01"
+
+# Serves the game as a static asset. The GitHub Actions workflow
+# (.github/workflows/deploy-tetris-game.yml) copies the repo's
+# index.html into ./public before running `wrangler deploy`, so this
+# folder is CI-generated and not committed itself.
+[assets]
+directory = "./public"
+
+# Custom domain (tetris.mzhservices.com) is attached to this Worker via
+# the Cloudflare dashboard/API directly (Workers & Pages -> tetris-game
+# -> Settings -> Domains & Routes) - it stays attached across
+# redeploys of this same worker name, nothing to configure here for it.
