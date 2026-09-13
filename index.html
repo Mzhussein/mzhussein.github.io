@@ -1089,13 +1089,24 @@
     // the featured line, so it gets the lead's own timbre/volume rather
     // than the bass's triangle wave (which made it sound like nothing more
     // than the bass pulse continuing, since it was the only voice left)
+    const interludeStart = melEnd;
     const loopEnd = scheduleChordSequence(INTERLUDE, melEnd, 'square', 1);
     const loopDuration = loopEnd - startTime;
 
-    // light hi-hat pulse, once per beat for the whole cycle, for rhythmic drive
-    const beatSec = WHOLE_NOTE / 4;
-    for (let beat = 0, tp = startTime; tp < startTime + loopDuration; beat++, tp = startTime + beat * beatSec){
-      activeMusicOscillators.push(playHat(tp, musicGain, 0.18));
+    // Hi-hat: this was flagged as missing an entire track's worth of
+    // presence, and it was - onset-detecting the actual recording's
+    // percussive content (after separating it from the pitched
+    // instruments with harmonic-percussive source separation, not just a
+    // frequency-band guess) showed a steady eighth-note pulse under the
+    // verse, and a visibly busier, denser pulse under the interlude -
+    // this was a flat once-per-beat click through the whole thing before.
+    const eighthSec = WHOLE_NOTE / 8;
+    for (let tp = startTime; tp < interludeStart; tp += eighthSec){
+      activeMusicOscillators.push(playHat(tp, musicGain, 0.15));
+    }
+    const sixteenthSec = WHOLE_NOTE / 16;
+    for (let tp = interludeStart; tp < loopEnd; tp += sixteenthSec){
+      activeMusicOscillators.push(playHat(tp, musicGain, 0.13));
     }
 
     musicTimer = setTimeout(() => {
