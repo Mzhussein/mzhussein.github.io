@@ -48,15 +48,22 @@
     flex-wrap:wrap;
     justify-content:center;
   }
+  /* Responsive at every breakpoint, not just mobile - a fixed 640x480
+     here left the board small and empty on an actual desktop window,
+     since resizeCanvas() in the script below measures .board-wrap's
+     rendered size and had nothing bigger to measure. */
   .board-wrap{
     position:relative;
     line-height:0;
     touch-action:none;
+    width:min(82vw, 1100px);
+    height:min(75vh, 760px);
+    max-width:100%;
   }
   canvas#board{
     display:block;
-    width:640px;
-    height:480px;
+    width:100%;
+    height:100%;
     border:3px solid var(--border);
     background:#000;
   }
@@ -471,9 +478,9 @@
 
   // ---------- constants ----------
   const SHIP_SIZE = 16;            // half-height of the ship triangle, px
-  const SHIP_TURN_SPEED = 4.2;     // radians/sec
-  const SHIP_THRUST = 260;         // px/sec^2
-  const SHIP_MAX_SPEED = 420;      // px/sec, classic cap so it stays controllable
+  const SHIP_TURN_SPEED = 6.0;     // radians/sec
+  const SHIP_THRUST = 420;         // px/sec^2
+  const SHIP_MAX_SPEED = 560;      // px/sec, classic cap so it stays controllable
   const SHIP_FRICTION = 0.0;       // classic: none - drifts forever
   const RESPAWN_INVULN = 2.5;      // seconds of flashing invulnerability after respawn
   const RESPAWN_DELAY = 1.0;       // seconds between death and respawn attempt
@@ -1484,6 +1491,15 @@
   score = 0; lives = STARTING_LIVES; level = 1;
   updateHud();
   loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+
+  // Debug hook - read-only game state for automated testing (e.g.
+  // confirming screen-wrap actually works end to end, not just by
+  // reading the code). No way to mutate state through it.
+  window.__asteroidsDebug = {
+    getShip: () => ({ x: ship.x, y: ship.y, vx: ship.vx, vy: ship.vy, angle: ship.angle }),
+    getBounds: () => ({ W, H }),
+  };
+
   requestAnimationFrame(loop);
 })();
 </script>
