@@ -90,6 +90,7 @@
   .overlay .score-line{color:var(--muted); font-size:0.8rem;}
   .overlay .blurb{font-size:0.68rem; color:var(--muted); line-height:1.5;}
   .overlay .prompt{color:var(--accent); font-size:0.8rem; letter-spacing:0.05em;}
+  .overlay .name-error{color:#f06060; font-size:0.68rem;}
   .leaderboard{ width:100%; max-width:220px; }
   .leaderboard h3{
     margin:0 0 6px;
@@ -357,6 +358,7 @@
         <p class="prompt">NEW HIGH SCORE!</p>
         <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="YOUR NAME">
         <button id="submitScoreBtn">SUBMIT</button>
+        <p class="name-error" id="nameError" hidden>Please choose a different name</p>
       </div>
       <div class="leaderboard" id="lbOverWrap" hidden>
         <h3>HIGH SCORES</h3>
@@ -380,6 +382,7 @@
       <div><b>Space</b> hard drop</div>
       <div><b>C</b> hold</div>
       <div><b>P</b> pause</div>
+      <div><b>Esc</b> exit game</div>
       <div><b>M</b> mute music</div>
     </div>
   </div>
@@ -389,6 +392,7 @@
 <div class="toolbar">
   <button id="muteBtn">MUTE MUSIC</button>
   <button id="pauseBtn">PAUSE</button>
+  <button id="exitBtn" hidden>EXIT</button>
 </div>
 
 <div class="touch-controls">
@@ -453,12 +457,14 @@
   const finalScoreEl = document.getElementById('finalScore');
   const muteBtn = document.getElementById('muteBtn');
   const pauseBtn = document.getElementById('pauseBtn');
+  const exitBtn = document.getElementById('exitBtn');
   const lbStartEl = document.getElementById('lbStart');
   const lbOverEl = document.getElementById('lbOver');
   const lbOverWrap = document.getElementById('lbOverWrap');
   const nameEntry = document.getElementById('nameEntry');
   const nameInput = document.getElementById('nameInput');
   const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const nameErrorEl = document.getElementById('nameError');
   const restartBtn = document.getElementById('restartBtn');
 
   // ---------- leaderboard ----------
@@ -470,6 +476,29 @@
   const LEADERBOARD_KEY = 'tetris_leaderboard_v1';
   const LEADERBOARD_MAX = 10;
   const LEADERBOARD_SHOW = 5;
+
+  // Client-side mirror of the profanity guard in backend/worker.js. This is
+  // just for instant feedback (no round trip needed to tell someone their
+  // name got rejected) - the worker is the real enforcement point since it
+  // can be POSTed to directly, bypassing the page entirely. Keep the two
+  // lists in sync.
+  const BANNED_SUBSTRINGS = [
+    'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
+    'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
+    'nazi', 'hitler', 'kike', 'chink', 'spic', 'wetback', 'tranny',
+  ];
+  function normalizeForFilter(s){
+    return String(s)
+      .toLowerCase()
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+      .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+      .replace(/@/g, 'a').replace(/\$/g, 's')
+      .replace(/[^a-z]/g, '');
+  }
+  function isBannedName(name){
+    const n = normalizeForFilter(name);
+    return BANNED_SUBSTRINGS.some((w) => n.includes(w));
+  }
 
   function loadLocalLeaderboard(){
     try {
@@ -504,6 +533,9 @@
     if (list.length < LEADERBOARD_MAX) return true;
     return s > list[list.length - 1].score;
   }
+  // Returns { list } on success, or { rejected: true } if the name was
+  // turned away for being inappropriate (as opposed to the worker just
+  // being unreachable, which falls back to local storage instead).
   async function addToLeaderboard(name, s){
     try {
       const res = await fetch(LEADERBOARD_API, {
@@ -511,11 +543,15 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name || 'ANON', score: s }),
       });
+      if (res.status === 400){
+        const body = await res.json().catch(() => ({}));
+        if (body && body.error === 'inappropriate name') return { rejected: true };
+      }
       if (!res.ok) throw new Error('bad status ' + res.status);
       const list = await res.json();
-      if (Array.isArray(list)) return list;
+      if (Array.isArray(list)) return { list };
     } catch (e){ /* worker unreachable - fall back below */ }
-    return addToLocalLeaderboard(name, s);
+    return { list: addToLocalLeaderboard(name, s) };
   }
   function renderLeaderboard(listEl, entries, highlightIndex){
     listEl.innerHTML = '';
@@ -741,6 +777,7 @@
     nameEntry.hidden = true;
     lbOverWrap.hidden = true;
     restartBtn.hidden = true;
+    exitBtn.hidden = true;
     overOverlay.hidden = false;
 
     const qualifies = await qualifiesForLeaderboard(finalScore);
@@ -749,6 +786,7 @@
     if (qualifies){
       nameEntry.hidden = false;
       nameInput.value = '';
+      nameErrorEl.hidden = true;
       setTimeout(() => nameInput.focus(), 50);
     } else {
       lbOverWrap.hidden = false;
@@ -762,11 +800,28 @@
     const finalScore = score;
     const myToken = gameOverToken;
     const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
+
+    // Instant client-side check first - no need to round-trip to the
+    // worker just to tell someone their name got flagged.
+    if (isBannedName(name)){
+      nameErrorEl.hidden = false;
+      return;
+    }
+    nameErrorEl.hidden = true;
+
     submitScoreBtn.disabled = true;
-    const list = await addToLeaderboard(name, finalScore);
+    const result = await addToLeaderboard(name, finalScore);
     submitScoreBtn.disabled = false;
     if (myToken !== gameOverToken) return; // a new game already started, ignore this
 
+    if (result.rejected){
+      // Defense-in-depth: the worker rejected it even though our local
+      // filter missed it. Keep the entry form open so they can retry.
+      nameErrorEl.hidden = false;
+      return;
+    }
+
+    const list = result.list;
     const index = list.findIndex(e => e.name === name && e.score === finalScore);
     nameEntry.hidden = true;
     lbOverWrap.hidden = false;
@@ -781,6 +836,7 @@
     startOverlay.hidden = true;
     overOverlay.hidden = true;
     pauseOverlay.hidden = true;
+    exitBtn.hidden = false;
     ensureAudio();
     startMusic();
   }
@@ -795,6 +851,20 @@
       pauseOverlay.hidden = true;
       startMusic();
     }
+  }
+
+  // Exit: unlike pause, this abandons the current game entirely and goes
+  // back to the start screen (with its leaderboard), from either mid-play
+  // or while paused.
+  function exitGame(){
+    if (state !== 'playing' && state !== 'paused') return;
+    state = 'ready';
+    stopMusic();
+    pauseOverlay.hidden = true;
+    overOverlay.hidden = true;
+    exitBtn.hidden = true;
+    startOverlay.hidden = false;
+    loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
   }
 
   // ---------- rendering ----------
@@ -1114,11 +1184,53 @@
     }, Math.max(loopDuration * 1000 - 120, 50));
   }
 
-  function startMusic(){
+  // ---------- optional user-supplied music file ----------
+  // If a file exists at this path, it's played instead of the synthesized
+  // theme above - no code changes needed. See AUDIO.md for how to add one.
+  // Missing file (the default) just fails the probe below and falls back
+  // to the built-in synthesized theme, silently.
+  const CUSTOM_MUSIC_URL = 'audio/tetris-theme.mp3';
+  const CUSTOM_MUSIC_VOLUME = 0.5;
+  let customMusicEl = null;
+  let customMusicAvailable = null; // null = not probed yet, true/false once known
+  let customMusicProbe = null;
+
+  function probeCustomMusic(){
+    if (customMusicProbe) return customMusicProbe;
+    customMusicProbe = new Promise((resolve) => {
+      const el = new Audio();
+      el.loop = true;
+      el.preload = 'auto';
+      el.volume = muted ? 0 : CUSTOM_MUSIC_VOLUME;
+      function cleanup(){
+        el.removeEventListener('canplaythrough', onReady);
+        el.removeEventListener('error', onFail);
+      }
+      function onReady(){ cleanup(); customMusicEl = el; customMusicAvailable = true; resolve(true); }
+      function onFail(){ cleanup(); customMusicAvailable = false; resolve(false); }
+      el.addEventListener('canplaythrough', onReady, { once: true });
+      el.addEventListener('error', onFail, { once: true });
+      el.src = CUSTOM_MUSIC_URL;
+      el.load();
+    });
+    return customMusicProbe;
+  }
+
+  async function startMusic(){
     ensureAudio();
     if (audioCtx.state === 'suspended') audioCtx.resume();
     if (musicPlaying) return;
     musicPlaying = true;
+
+    if (customMusicAvailable === null) await probeCustomMusic();
+    if (!musicPlaying) return; // stopMusic() ran while the probe above was in flight
+
+    if (customMusicAvailable && customMusicEl){
+      customMusicEl.currentTime = 0;
+      customMusicEl.volume = muted ? 0 : CUSTOM_MUSIC_VOLUME;
+      customMusicEl.play().catch(() => { /* ignore - we're already inside a user-gesture handler in practice */ });
+      return;
+    }
     scheduleLoop(audioCtx.currentTime + 0.05);
   }
 
@@ -1130,12 +1242,17 @@
       activeMusicOscillators.forEach(osc => { try { osc.stop(now); } catch(e){ /* already stopped */ } });
     }
     activeMusicOscillators = [];
+    if (customMusicEl){
+      customMusicEl.pause();
+      customMusicEl.currentTime = 0;
+    }
   }
 
   function toggleMute(){
     muted = !muted;
     if (musicGain) musicGain.gain.value = muted ? 0 : 0.12;
     if (sfxGain) sfxGain.gain.value = muted ? 0 : 0.15;
+    if (customMusicEl) customMusicEl.volume = muted ? 0 : CUSTOM_MUSIC_VOLUME;
     muteBtn.textContent = muted ? 'UNMUTE MUSIC' : 'MUTE MUSIC';
   }
 
@@ -1200,6 +1317,7 @@
     }
     if (e.code === 'KeyP'){ togglePause(); return; }
     if (e.code === 'KeyM'){ toggleMute(); return; }
+    if (e.code === 'Escape'){ exitGame(); return; }
 
     if (state !== 'playing') return;
     if (heldKeys[e.code]) return;
@@ -1228,6 +1346,7 @@
   submitScoreBtn.addEventListener('click', submitScore);
   muteBtn.addEventListener('click', toggleMute);
   pauseBtn.addEventListener('click', togglePause);
+  exitBtn.addEventListener('click', exitGame);
 
   document.querySelectorAll('.touch-controls button').forEach(btn => {
     btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleTouch(btn.dataset.action); }, {passive:false});
