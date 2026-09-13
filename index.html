@@ -451,34 +451,61 @@
   const submitScoreBtn = document.getElementById('submitScoreBtn');
   const restartBtn = document.getElementById('restartBtn');
 
-  // ---------- leaderboard (local to this browser - static site, no server) ----------
+  // ---------- leaderboard ----------
+  // Shared across every player via a small Cloudflare Worker + KV store
+  // (see backend/README.md). If that's unreachable for any reason
+  // (offline, worker down, opened straight from a file) we fall back to
+  // a per-browser localStorage list so the game never breaks.
+  const LEADERBOARD_API = 'https://tetris-leaderboard.mzhussein42.workers.dev/leaderboard';
   const LEADERBOARD_KEY = 'tetris_leaderboard_v1';
   const LEADERBOARD_MAX = 10;
   const LEADERBOARD_SHOW = 5;
 
-  function loadLeaderboard(){
+  function loadLocalLeaderboard(){
     try {
       const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
       return Array.isArray(arr) ? arr : [];
     } catch (e){ return []; }
   }
-  function saveLeaderboard(list){
+  function saveLocalLeaderboard(list){
     try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list)); } catch (e){ /* storage unavailable, ignore */ }
   }
-  function qualifiesForLeaderboard(s){
+  function addToLocalLeaderboard(name, s){
+    const list = loadLocalLeaderboard();
+    list.push({ name: name || 'ANON', score: s });
+    list.sort((a, b) => b.score - a.score);
+    list.length = Math.min(list.length, LEADERBOARD_MAX);
+    saveLocalLeaderboard(list);
+    return list;
+  }
+
+  async function loadLeaderboard(){
+    try {
+      const res = await fetch(LEADERBOARD_API);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return list;
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return loadLocalLeaderboard();
+  }
+  async function qualifiesForLeaderboard(s){
     if (s <= 0) return false;
-    const list = loadLeaderboard();
+    const list = await loadLeaderboard();
     if (list.length < LEADERBOARD_MAX) return true;
     return s > list[list.length - 1].score;
   }
-  function addToLeaderboard(name, s){
-    const list = loadLeaderboard();
-    const entry = { name: name || 'ANON', score: s };
-    list.push(entry);
-    list.sort((a, b) => b.score - a.score);
-    list.length = Math.min(list.length, LEADERBOARD_MAX);
-    saveLeaderboard(list);
-    return { list, index: list.indexOf(entry) };
+  async function addToLeaderboard(name, s){
+    try {
+      const res = await fetch(LEADERBOARD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || 'ANON', score: s }),
+      });
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return list;
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return addToLocalLeaderboard(name, s);
   }
   function renderLeaderboard(listEl, entries, highlightIndex){
     listEl.innerHTML = '';
@@ -685,31 +712,47 @@
     canHold = false;
   }
 
-  function gameOver(){
+  let gameOverToken = 0; // guards against a stale async response landing after a restart
+
+  async function gameOver(){
     state = 'over';
-    finalScoreEl.textContent = 'Score: ' + score;
+    const finalScore = score;
+    const myToken = ++gameOverToken;
+    finalScoreEl.textContent = 'Score: ' + finalScore;
     stopMusic();
     sfxGameOver();
 
-    if (qualifiesForLeaderboard(score)){
+    // show GAME OVER + score right away; the leaderboard check fills in async
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = true;
+    restartBtn.hidden = true;
+    overOverlay.hidden = false;
+
+    const qualifies = await qualifiesForLeaderboard(finalScore);
+    if (myToken !== gameOverToken) return; // a new game already started, ignore this
+
+    if (qualifies){
       nameEntry.hidden = false;
-      lbOverWrap.hidden = true;
-      restartBtn.hidden = true;
       nameInput.value = '';
-      overOverlay.hidden = false;
       setTimeout(() => nameInput.focus(), 50);
     } else {
-      nameEntry.hidden = true;
       lbOverWrap.hidden = false;
+      renderLeaderboard(lbOverEl, await loadLeaderboard(), -1);
       restartBtn.hidden = false;
-      renderLeaderboard(lbOverEl, loadLeaderboard(), -1);
-      overOverlay.hidden = false;
     }
+    if (myToken !== gameOverToken) return;
   }
 
-  function submitScore(){
+  async function submitScore(){
+    const finalScore = score;
+    const myToken = gameOverToken;
     const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
-    const { list, index } = addToLeaderboard(name, score);
+    submitScoreBtn.disabled = true;
+    const list = await addToLeaderboard(name, finalScore);
+    submitScoreBtn.disabled = false;
+    if (myToken !== gameOverToken) return; // a new game already started, ignore this
+
+    const index = list.findIndex(e => e.name === name && e.score === finalScore);
     nameEntry.hidden = true;
     lbOverWrap.hidden = false;
     restartBtn.hidden = false;
@@ -1005,7 +1048,7 @@
     if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
 
     if (e.code === 'Enter'){
-      if (state === 'ready' || (state === 'over' && nameEntry.hidden)) startGame();
+      if (state === 'ready' || (state === 'over' && !restartBtn.hidden)) startGame();
       return;
     }
     if (e.code === 'KeyP'){ togglePause(); return; }
@@ -1059,7 +1102,7 @@
   // init empty board for initial render
   board = newBoard();
   updateHud();
-  renderLeaderboard(lbStartEl, loadLeaderboard(), -1);
+  loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
   requestAnimationFrame(loop);
 })();
 </script>
