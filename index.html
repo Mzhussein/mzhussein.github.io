@@ -163,8 +163,76 @@
     max-width:480px;
     line-height:1.6;
   }
-  @media (max-width: 520px){
-    .touch-controls{display:block;}
+  /* Small / short screens: collapse the 3-column layout into one
+     column that is sized to fit the viewport with no scrolling. */
+  @media (max-width: 700px), (max-height: 750px){
+    html, body{ height:100%; }
+    body{
+      height:100vh;
+      height:100dvh;
+      overflow:hidden;
+      padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+      justify-content:flex-start;
+    }
+    h1{
+      font-size:1.05rem;
+      letter-spacing:0.2em;
+      margin:0;
+      text-shadow:none;
+    }
+    .subtitle{ display:none; }
+    .layout{
+      flex:1 1 auto;
+      min-height:0;
+      width:100%;
+      flex-direction:column;
+      flex-wrap:nowrap;
+      align-items:stretch;
+      gap:4px;
+    }
+    .side{
+      flex:0 0 auto;
+      width:100%;
+      flex-direction:row;
+      flex-wrap:wrap;
+      justify-content:center;
+      gap:4px;
+    }
+    .side .panel{
+      flex:1 1 60px;
+      min-width:52px;
+      padding:4px 6px;
+    }
+    .side .panel h3{ font-size:0.5rem; margin-bottom:2px; }
+    .side .panel .value{ font-size:0.85rem; }
+    .side canvas.mini{ width:32px; height:32px; }
+    .controls-list{ display:none; }
+    .board-wrap{
+      flex:1 1 auto;
+      min-height:0;
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      touch-action:none;
+    }
+    canvas#board{
+      width:auto;
+      height:auto;
+      max-width:90vw;
+      max-height:100%;
+    }
+    .toolbar{ flex:0 0 auto; margin-top:2px; gap:6px; }
+    .toolbar button{ padding:5px 10px; font-size:0.65rem; }
+    .touch-controls{
+      display:block;
+      flex:0 0 auto;
+      margin-top:4px;
+      width:min(300px, 92vw);
+    }
+    .touch-row{ margin-bottom:6px; }
+    .touch-controls button{ padding:9px 0; font-size:1rem; }
+    footer{ display:none; }
   }
 </style>
 </head>
@@ -617,29 +685,55 @@
   const NOTE_FREQ = {
     B1: 61.74, C2: 65.41, D2: 73.42, E2: 82.41,
     A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33,
-    E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
+    E5: 659.25, F5: 698.46, G5: 783.99, GS5: 830.61, A5: 880.00
   };
 
   // "Korobeiniki" (Tetris Theme A) - traditional Russian folk melody, public domain.
-  // [note or null for rest, duration in eighth-notes]
+  // Full arrangement as heard in the original game: verse (played twice),
+  // the contrasting mid-song bridge, then the verse twice more to close the loop.
+  // [note or null for rest, beat divisor - 4 = quarter, 8 = eighth, negative = dotted]
   const MELODY = [
-    ['E5',2],['B4',1],['C5',1],['D5',2],['C5',1],['B4',1],
-    ['A4',2],['A4',1],['C5',1],['E5',2],['D5',1],['C5',1],
-    ['B4',3],['C5',1],['D5',2],['E5',2],
-    ['C5',2],['A4',2],['A4',2],[null,2],
-    ['D5',3],['F5',1],['A5',2],['G5',1],['F5',1],
-    ['E5',3],['C5',1],['E5',2],['D5',1],['C5',1],
-    ['B4',2],['B4',1],['C5',1],['D5',2],['E5',2],
-    ['C5',2],['A4',2],['A4',2],[null,2]
-  ];
-  // simple descending bass line under the classic i-VII-VI-V7 (Em-D-C-B7) progression
-  const BASS = [
-    ['E2',8],['D2',8],['C2',8],['B1',8],
-    ['E2',8],['D2',8],['C2',8],['B1',8]
+    // verse
+    ['E5',4],['B4',8],['C5',8],['D5',4],['C5',8],['B4',8],
+    ['A4',4],['A4',8],['C5',8],['E5',4],['D5',8],['C5',8],
+    ['B4',-4],['C5',8],['D5',4],['E5',4],
+    ['C5',4],['A4',4],['A4',4],[null,4],
+
+    [null,8],['D5',4],['F5',8],['A5',4],['G5',8],['F5',8],
+    ['E5',-4],['C5',8],['E5',4],['D5',8],['C5',8],
+    ['B4',4],['B4',8],['C5',8],['D5',4],['E5',4],
+    ['C5',4],['A4',4],['A4',4],[null,4],
+
+    // bridge
+    ['E5',2],['C5',2],
+    ['D5',2],['B4',2],
+    ['C5',2],['A4',2],
+    ['B4',1],
+
+    ['E5',2],['C5',2],
+    ['D5',2],['B4',2],
+    ['C5',4],['E5',4],['A5',2],
+    ['GS5',1],
+
+    // verse again
+    ['E5',4],['B4',8],['C5',8],['D5',4],['C5',8],['B4',8],
+    ['A4',4],['A4',8],['C5',8],['E5',4],['D5',8],['C5',8],
+    ['B4',-4],['C5',8],['D5',4],['E5',4],
+    ['C5',4],['A4',4],['A4',4],[null,4],
+
+    [null,8],['D5',4],['F5',8],['A5',4],['G5',8],['F5',8],
+    [null,8],['E5',4],['C5',8],['E5',4],['D5',8],['C5',8],
+    [null,8],['B4',4],['C5',8],['D5',4],['E5',4],
+    [null,8],['C5',4],['A4',8],['A4',4],[null,4]
   ];
 
-  const BPM = 150;
-  const EIGHTH = 60 / BPM / 2;
+  const BPM = 144;
+  const WHOLE_NOTE = (60 / BPM) * 4; // seconds per whole note
+  function beatSeconds(divisor){
+    return divisor > 0 ? WHOLE_NOTE / divisor : (WHOLE_NOTE / Math.abs(divisor)) * 1.5;
+  }
+  // simple bass vamp (Em-D-C-B7, i.e. E2-D2-C2-B1) cycling under the melody, one chord per measure
+  const BASS_CYCLE = ['E2','D2','C2','B1'];
 
   function ensureAudio(){
     if (audioCtx) return;
@@ -669,18 +763,20 @@
 
   function scheduleLoop(startTime){
     let t = startTime;
-    for (const [note, dur] of MELODY){
-      const d = dur * EIGHTH;
-      if (note) playNote(NOTE_FREQ[note], t, d * 0.92, musicGain, 'square');
+    for (const [note, divisor] of MELODY){
+      const d = beatSeconds(divisor);
+      if (note) playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square');
       t += d;
     }
-    let tb = startTime;
-    for (const [note, dur] of BASS){
-      const d = dur * EIGHTH;
-      if (note) playNote(NOTE_FREQ[note], tb, d * 0.92, musicGain, 'triangle');
-      tb += d;
-    }
     const loopDuration = t - startTime;
+
+    // bass: one chord per whole-note measure, cycled for the loop's full length
+    let measure = 0;
+    for (let tb = startTime; tb < startTime + loopDuration; tb += WHOLE_NOTE, measure++){
+      const note = BASS_CYCLE[measure % BASS_CYCLE.length];
+      playNote(NOTE_FREQ[note], tb, Math.min(WHOLE_NOTE, startTime + loopDuration - tb) * 0.85, musicGain, 'triangle');
+    }
+
     musicTimer = setTimeout(() => {
       if (musicPlaying) scheduleLoop(audioCtx.currentTime + 0.05);
     }, Math.max(loopDuration * 1000 - 120, 50));
