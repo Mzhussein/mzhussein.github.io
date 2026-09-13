@@ -2,9 +2,8 @@ name = "asteroids-leaderboard"
 main = "worker.js"
 compatibility_date = "2024-11-01"
 
-# KV namespace "asteroids_leaderboard" - see README.md in this folder for
-# how to create it and get the real ID below. This placeholder ID must be
-# replaced before this Worker can deploy successfully.
+# KV namespace "asteroids_leaderboard", created via `wrangler kv namespace
+# create` (see README.md in this folder for how it was created).
 [[kv_namespaces]]
 binding = "LEADERBOARD"
-id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+id = "f2fb009567894fe08b7c99bf87924032"
