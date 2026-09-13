@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Asteroids</title>
+<style>
+  :root{
+    --bg:#000;
+    --panel:#0a0a0a;
+    --border:#2a2a3d;
+    --text:#e8e8f0;
+    --accent:#00ff66;
+    --muted:#6a6a80;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Courier New', 'Consolas', monospace;
+    min-height:100%;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px 12px 40px;
+  }
+  h1{
+    letter-spacing:0.3em;
+    font-size:2rem;
+    margin:0 0 4px;
+    color:var(--accent);
+    text-shadow:0 0 8px rgba(0,255,102,0.35);
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:0.75rem;
+    margin-bottom:18px;
+    text-align:center;
+  }
+  .layout{
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .board-wrap{
+    position:relative;
+    line-height:0;
+    touch-action:none;
+  }
+  canvas#board{
+    display:block;
+    width:640px;
+    height:480px;
+    border:3px solid var(--border);
+    background:#000;
+  }
+  .overlay{
+    position:absolute;
+    inset:0;
+    line-height:1.4;
+    background:rgba(0,0,0,0.85);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:10px;
+    padding:16px;
+    overflow-y:auto;
+    box-sizing:border-box;
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h2{
+    margin:0;
+    color:var(--accent);
+    letter-spacing:0.15em;
+  }
+  .overlay p{
+    margin:0;
+    color:var(--text);
+    font-size:0.85rem;
+    line-height:1.5;
+  }
+  .overlay .score-line{color:var(--muted); font-size:0.8rem;}
+  .overlay .blurb{font-size:0.68rem; color:var(--muted); line-height:1.5;}
+  .overlay .prompt{color:var(--accent); font-size:0.8rem; letter-spacing:0.05em;}
+  .overlay .name-error{color:#f06060; font-size:0.68rem;}
+  .leaderboard{ width:100%; max-width:220px; }
+  .leaderboard h3{
+    margin:0 0 6px;
+    font-size:0.65rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .leaderboard ol{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .leaderboard li{
+    display:flex;
+    gap:8px;
+    font-size:0.72rem;
+    color:var(--text);
+    padding:2px 4px;
+  }
+  .leaderboard li.lb-empty{color:var(--muted); justify-content:center; font-size:0.68rem;}
+  .leaderboard li.lb-highlight{background:rgba(0,255,102,0.12); color:var(--accent);}
+  .leaderboard .lb-rank{color:var(--muted); width:1.4em; text-align:right; flex:0 0 auto;}
+  .leaderboard .lb-name{flex:1 1 auto; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .leaderboard .lb-score{flex:0 0 auto; font-variant-numeric:tabular-nums;}
+  #nameEntry{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  #nameEntry[hidden]{display:none;}
+  #nameInput{
+    font-family:inherit;
+    background:#000;
+    color:var(--accent);
+    border:2px solid var(--border);
+    padding:7px 10px;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    text-align:center;
+    text-transform:uppercase;
+    width:160px;
+    max-width:70vw;
+  }
+  #nameInput:focus{outline:none; border-color:var(--accent);}
+  button{
+    font-family:inherit;
+    background:var(--panel);
+    color:var(--text);
+    border:2px solid var(--border);
+    padding:8px 16px;
+    cursor:pointer;
+    font-size:0.85rem;
+    letter-spacing:0.05em;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  .side{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    width:150px;
+  }
+  .panel{
+    background:var(--panel);
+    border:2px solid var(--border);
+    padding:10px 12px;
+  }
+  .panel h3{
+    margin:0 0 8px;
+    font-size:0.7rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .panel .value{
+    font-size:1.3rem;
+    color:var(--accent);
+  }
+  .panel .lives-icons{
+    display:flex;
+    gap:4px;
+  }
+  .panel .lives-icons svg{ width:16px; height:16px; }
+  @keyframes level-up-pulse{
+    0%, 100%{ box-shadow:none; border-color:var(--border); }
+    30%{ box-shadow:0 0 14px 2px rgba(0,255,102,0.7); border-color:var(--accent); }
+  }
+  .panel.level-up-flash{
+    animation:level-up-pulse 0.9s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .panel.level-up-flash{ animation:none; border-color:var(--accent); }
+  }
+  .controls-list{
+    font-size:0.7rem;
+    color:var(--muted);
+    line-height:1.7;
+  }
+  .controls-list b{color:var(--text);}
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  /* Touch controls: the original cabinet's actual 5-button layout - no
+     joystick, just ROTATE L / ROTATE R / THRUST on the left, FIRE /
+     HYPERSPACE on the right. */
+  .touch-controls{
+    display:none;
+    margin-top:16px;
+    width:320px;
+    max-width:92vw;
+  }
+  .pad-row{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .rot-pad{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .rot-row{
+    display:flex;
+    gap:8px;
+  }
+  .arc-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin:0;
+    padding:0;
+    background:linear-gradient(180deg, #16281f, #0a1510);
+    border:2px solid var(--border);
+    color:var(--text);
+    font-weight:bold;
+    user-select:none;
+    -webkit-user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .arc-btn:active{
+    background:linear-gradient(180deg, #0a1510, #16281f);
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .rot-btn{ width:56px; height:56px; font-size:1.3rem; border-radius:8px; }
+  .thrust-btn{ width:120px; height:48px; font-size:0.65rem; border-radius:8px; }
+  .fire-pad{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  .fire-btn{ width:72px; height:72px; border-radius:50%; font-size:0.75rem; }
+  .hyper-btn{ width:90px; height:40px; font-size:0.6rem; border-radius:8px; }
+  footer{
+    margin-top:26px;
+    color:var(--muted);
+    font-size:0.65rem;
+    text-align:center;
+    max-width:480px;
+    line-height:1.6;
+  }
+  /* Small / short screens: collapse into one column, canvas fills all
+     remaining space (no fixed aspect ratio to preserve, unlike Tetris -
+     Asteroids' playfield is just whatever rectangle is available). */
+  @media (max-width: 760px), (max-height: 750px){
+    html, body{ height:100%; }
+    body{
+      height:100vh;
+      height:100dvh;
+      overflow:hidden;
+      padding:2px 10px calc(2px + env(safe-area-inset-bottom, 0px));
+      justify-content:flex-start;
+    }
+    h1{ display:none; }
+    .subtitle{ display:none; }
+    .layout{
+      flex:1 1 auto;
+      min-height:0;
+      width:100%;
+      display:grid;
+      grid-template-columns:auto minmax(0,1fr);
+      grid-template-rows:auto minmax(0,1fr);
+      grid-template-areas:
+        "stats board"
+        "next  board";
+      gap:2px;
+    }
+    .side-stats{ grid-area:stats; align-self:start; }
+    .side-next{ grid-area:next; align-self:start; }
+    .side{
+      width:auto;
+      flex:0 0 auto;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .side .panel{
+      width:56px;
+      padding:4px 5px;
+    }
+    .side .panel h3{ font-size:0.5rem; margin-bottom:2px; }
+    .side .panel .value{ font-size:0.85rem; }
+    .side .lives-icons svg{ width:11px; height:11px; }
+    .controls-list{ display:none; }
+    .overlay{ gap:6px; padding:8px; }
+    .overlay .blurb{ font-size:0.6rem; }
+    .leaderboard h3{ font-size:0.55rem; }
+    .leaderboard li{ font-size:0.62rem; }
+    #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
+    .board-wrap{
+      grid-area:board;
+      height:100%;
+      min-height:0;
+      min-width:0;
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    canvas#board{
+      width:100%;
+      height:100%;
+      max-width:100%;
+      max-height:100%;
+    }
+    .toolbar{ flex:0 0 auto; margin-top:0; gap:6px; }
+    .toolbar button{ padding:2px 9px; font-size:0.6rem; }
+    .touch-controls{
+      display:block;
+      flex:0 0 auto;
+      margin-top:1px;
+      width:min(380px, 98vw);
+    }
+    .rot-btn{ width:48px; height:48px; font-size:1.1rem; }
+    .thrust-btn{ width:104px; height:40px; font-size:0.58rem; }
+    .fire-btn{ width:60px; height:60px; font-size:0.65rem; }
+    .hyper-btn{ width:78px; height:34px; font-size:0.55rem; }
+    footer{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<h1>ASTEROIDS</h1>
+<div class="subtitle">a small, junk-free recreation &mdash; vector-style, with synthesized sound</div>
+
+<div class="layout">
+
+  <div class="side side-stats">
+    <div class="panel">
+      <h3>SCORE</h3>
+      <div class="value" id="score">0</div>
+    </div>
+    <div class="panel">
+      <h3>LEVEL</h3>
+      <div class="value" id="level">1</div>
+    </div>
+    <div class="panel">
+      <h3>LIVES</h3>
+      <div class="lives-icons" id="livesIcons"></div>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board" width="640" height="480"></canvas>
+    <div class="overlay" id="startOverlay">
+      <h2>ASTEROIDS</h2>
+      <p class="blurb">Destroy the asteroids without getting hit. Shooting
+      a big one splits it into smaller ones. Clear the field to advance -
+      watch for the UFO.<br>Arrows/A-D rotate &amp; thrust, Space fires,
+      Shift hyperspaces.</p>
+      <div class="leaderboard">
+        <h3>HIGH SCORES</h3>
+        <ol id="lbStart"></ol>
+      </div>
+      <button id="startBtn">PRESS ENTER TO START</button>
+    </div>
+    <div class="overlay" id="pauseOverlay" hidden>
+      <h2>PAUSED</h2>
+      <p>Press P to resume</p>
+    </div>
+    <div class="overlay" id="overOverlay" hidden>
+      <h2>GAME OVER</h2>
+      <p class="score-line" id="finalScore">Score: 0</p>
+      <div id="nameEntry" hidden>
+        <p class="prompt">NEW HIGH SCORE!</p>
+        <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="YOUR NAME">
+        <button id="submitScoreBtn">SUBMIT</button>
+        <p class="name-error" id="nameError" hidden>Please choose a different name</p>
+      </div>
+      <div class="leaderboard" id="lbOverWrap" hidden>
+        <h3>HIGH SCORES</h3>
+        <ol id="lbOver"></ol>
+      </div>
+      <button id="restartBtn">PRESS ENTER TO RESTART</button>
+    </div>
+  </div>
+
+  <div class="side side-next">
+    <div class="panel controls-list">
+      <h3>CONTROLS</h3>
+      <div><b>&larr; &rarr; / A D</b> rotate</div>
+      <div><b>&uarr; / W</b> thrust</div>
+      <div><b>Space</b> fire</div>
+      <div><b>Shift</b> hyperspace</div>
+      <div><b>P</b> pause</div>
+      <div><b>Esc</b> exit</div>
+      <div><b>M</b> mute music</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toolbar">
+  <button id="muteBtn">MUTE SOUND</button>
+  <button id="pauseBtn">PAUSE</button>
+  <button id="exitBtn" hidden>EXIT</button>
+</div>
+
+<div class="touch-controls">
+  <div class="pad-row">
+    <div class="rot-pad">
+      <div class="rot-row">
+        <button class="arc-btn rot-btn" data-action="left" aria-label="Rotate left">&#8634;</button>
+        <button class="arc-btn rot-btn" data-action="right" aria-label="Rotate right">&#8635;</button>
+      </div>
+      <button class="arc-btn thrust-btn" data-action="thrust" aria-label="Thrust">THRUST</button>
+    </div>
+    <div class="fire-pad">
+      <button class="arc-btn fire-btn" data-action="fire" aria-label="Fire">FIRE</button>
+      <button class="arc-btn hyper-btn" data-action="hyperspace" aria-label="Hyperspace">HYPER</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Asteroids&reg; is a trademark of Atari. This is an unofficial, from-scratch
+  fan recreation built for personal/educational use &mdash; no original code or
+  assets, no ads, no trackers. All sound is synthesized live in the browser.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- constants ----------
+  const SHIP_SIZE = 16;            // half-height of the ship triangle, px
+  const SHIP_TURN_SPEED = 4.2;     // radians/sec
+  const SHIP_THRUST = 260;         // px/sec^2
+  const SHIP_MAX_SPEED = 420;      // px/sec, classic cap so it stays controllable
+  const SHIP_FRICTION = 0.0;       // classic: none - drifts forever
+  const RESPAWN_INVULN = 2.5;      // seconds of flashing invulnerability after respawn
+  const RESPAWN_DELAY = 1.0;       // seconds between death and respawn attempt
+
+  const BULLET_SPEED = 480;        // px/sec
+  const BULLET_LIFETIME = 0.9;     // seconds before a bullet expires
+  const BULLET_MAX = 5;            // max player bullets on screen at once
+  const FIRE_COOLDOWN = 0.22;      // seconds between shots
+
+  const ASTEROID_RADII = { large: 46, medium: 26, small: 13 };
+  const ASTEROID_SCORES = { large: 20, medium: 50, small: 100 };
+  const ASTEROID_SPEED = { large: 45, medium: 75, small: 120 };
+  const ASTEROID_START_COUNT = 4;  // wave 1 asteroid count
+  const ASTEROID_JAG = 0.4;        // how jagged the polygon outline is
+
+  const SAUCER_SCORES = { big: 200, small: 1000 };
+  const SAUCER_SPEED = { big: 90, small: 130 };
+  const SAUCER_MIN_INTERVAL = 12;  // seconds, min time between saucer spawns
+  const SAUCER_MAX_INTERVAL = 22;
+  const SAUCER_BULLET_SPEED = 340;
+  const SAUCER_FIRE_INTERVAL = 1.4;
+
+  const HYPERSPACE_DEATH_CHANCE = 0.12;
+  const STARTING_LIVES = 3;
+  const EXTRA_LIFE_SCORE = 10000;
+
+  // ---------- canvas / responsive sizing ----------
+  const boardCanvas = document.getElementById('board');
+  const ctx = boardCanvas.getContext('2d');
+  const boardWrapEl = document.querySelector('.board-wrap');
+  let W = boardCanvas.width, H = boardCanvas.height;
+
+  function resizeCanvas(){
+    const rect = boardWrapEl.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    // Keep a sane minimum so a not-yet-laid-out container doesn't zero the canvas.
+    const cssW = Math.max(200, Math.floor(rect.width));
+    const cssH = Math.max(150, Math.floor(rect.height));
+    W = cssW; H = cssH;
+    boardCanvas.width = Math.floor(cssW * dpr);
+    boardCanvas.height = Math.floor(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', resizeCanvas);
+
+  // ---------- utility ----------
+  function rand(min, max){ return min + Math.random() * (max - min); }
+  function choice(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+  function wrap(obj){
+    if (obj.x < -obj.r) obj.x = W + obj.r;
+    else if (obj.x > W + obj.r) obj.x = -obj.r;
+    if (obj.y < -obj.r) obj.y = H + obj.r;
+    else if (obj.y > H + obj.r) obj.y = -obj.r;
+  }
+  function dist2(ax, ay, bx, by){ const dx = ax - bx, dy = ay - by; return dx*dx + dy*dy; }
+  function circleHit(a, b){
+    const rr = (a.r + b.r) * (a.r + b.r);
+    return dist2(a.x, a.y, b.x, b.y) < rr;
+  }
+
+  // ---------- entities ----------
+  let ship, bullets, asteroids, particles, saucer, saucerBullets;
+  let score, lives, level, nextExtraLifeAt;
+  let state = 'ready'; // ready | playing | paused | over
+  let lastTime = 0;
+  let shipRespawnTimer = 0;
+  let saucerTimer = 0;
+  let sinceLevelStart = 0;
+
+  function newShip(){
+    return {
+      x: W / 2, y: H / 2, r: SHIP_SIZE * 0.6,
+      angle: -Math.PI / 2, // pointing up
+      vx: 0, vy: 0,
+      thrusting: false,
+      alive: true,
+      invuln: RESPAWN_INVULN,
+      canShoot: true,
+      fireTimer: 0,
+    };
+  }
+
+  function makeAsteroidShape(){
+    const verts = Math.floor(rand(8, 13));
+    const offsets = [];
+    for (let i = 0; i < verts; i++){
+      offsets.push(rand(1 - ASTEROID_JAG, 1 + ASTEROID_JAG));
+    }
+    return offsets;
+  }
+
+  function newAsteroid(size, x, y){
+    const r = ASTEROID_RADII[size];
+    if (x === undefined){
+      // spawn at an edge, away from the ship
+      const edge = Math.floor(rand(0, 4));
+      if (edge === 0){ x = rand(0, W); y = -r; }
+      else if (edge === 1){ x = W + r; y = rand(0, H); }
+      else if (edge === 2){ x = rand(0, W); y = H + r; }
+      else { x = -r; y = rand(0, H); }
+    }
+    const speed = ASTEROID_SPEED[size] * rand(0.6, 1.2);
+    const ang = rand(0, Math.PI * 2);
+    return {
+      type: 'asteroid', size, x, y, r,
+      vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+      rot: 0, rotSpeed: rand(-1.2, 1.2),
+      shape: makeAsteroidShape(),
+    };
+  }
+
+  function splitAsteroid(a){
+    score += ASTEROID_SCORES[a.size];
+    updateHud();
+    maybeExtraLife();
+    if (a.size === 'large'){
+      asteroids.push(newAsteroid('medium', a.x, a.y));
+      asteroids.push(newAsteroid('medium', a.x, a.y));
+      sfxBang('large');
+    } else if (a.size === 'medium'){
+      asteroids.push(newAsteroid('small', a.x, a.y));
+      asteroids.push(newAsteroid('small', a.x, a.y));
+      sfxBang('medium');
+    } else {
+      sfxBang('small');
+    }
+    spawnDebris(a.x, a.y, a.size === 'large' ? 14 : a.size === 'medium' ? 9 : 5);
+  }
+
+  function maybeExtraLife(){
+    if (score >= nextExtraLifeAt){
+      lives++;
+      nextExtraLifeAt += EXTRA_LIFE_SCORE;
+      updateHud();
+      sfxExtraLife();
+      flashPanel('livesIcons');
+    }
+  }
+
+  function spawnDebris(x, y, count){
+    for (let i = 0; i < count; i++){
+      const ang = rand(0, Math.PI * 2);
+      const speed = rand(30, 160);
+      particles.push({
+        x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed,
+        life: rand(0.3, 0.8), maxLife: 0.8,
+      });
+    }
+  }
+
+  function fireBullet(){
+    if (!ship.alive || bullets.length >= BULLET_MAX || ship.fireTimer > 0) return;
+    ship.fireTimer = FIRE_COOLDOWN;
+    const nose = { x: ship.x + Math.cos(ship.angle) * SHIP_SIZE, y: ship.y + Math.sin(ship.angle) * SHIP_SIZE };
+    bullets.push({
+      x: nose.x, y: nose.y, r: 2,
+      vx: ship.vx + Math.cos(ship.angle) * BULLET_SPEED,
+      vy: ship.vy + Math.sin(ship.angle) * BULLET_SPEED,
+      life: BULLET_LIFETIME,
+    });
+    sfxFire();
+  }
+
+  function hyperspace(){
+    if (!ship.alive) return;
+    sfxHyperspace();
+    if (Math.random() < HYPERSPACE_DEATH_CHANCE){
+      killShip();
+      return;
+    }
+    ship.x = rand(40, W - 40);
+    ship.y = rand(40, H - 40);
+    ship.vx = 0; ship.vy = 0;
+    ship.invuln = Math.max(ship.invuln, 1.0);
+  }
+
+  function killShip(){
+    if (!ship.alive) return;
+    ship.alive = false;
+    spawnDebris(ship.x, ship.y, 20);
+    sfxShipExplode();
+    lives--;
+    updateHud();
+    shipRespawnTimer = RESPAWN_DELAY;
+    if (lives < 0){
+      gameOver();
+    }
+  }
+
+  function trySpawnShip(){
+    // don't spawn on top of an asteroid
+    const candidate = { x: W / 2, y: H / 2, r: SHIP_SIZE };
+    for (const a of asteroids){
+      if (dist2(candidate.x, candidate.y, a.x, a.y) < (a.r + 60) * (a.r + 60)) return false;
+    }
+    ship = newShip();
+    return true;
+  }
+
+  function spawnSaucer(){
+    const size = Math.random() < Math.max(0.15, 0.5 - level * 0.04) ? 'small' : 'big';
+    const fromLeft = Math.random() < 0.5;
+    saucer = {
+      size, r: size === 'big' ? 18 : 10,
+      x: fromLeft ? -20 : W + 20,
+      y: rand(H * 0.15, H * 0.85),
+      vx: (fromLeft ? 1 : -1) * SAUCER_SPEED[size],
+      vy: 0,
+      dirTimer: rand(0.8, 1.8),
+      fireTimer: SAUCER_FIRE_INTERVAL,
+    };
+    sfxSaucerStart(size);
+  }
+
+  function fireSaucerBullet(){
+    if (!saucer || !ship.alive) return;
+    let ang;
+    if (saucer.size === 'small'){
+      // aims roughly at the player, with a little spread
+      ang = Math.atan2(ship.y - saucer.y, ship.x - saucer.x) + rand(-0.15, 0.15);
+    } else {
+      ang = rand(0, Math.PI * 2);
+    }
+    saucerBullets.push({
+      x: saucer.x, y: saucer.y, r: 2,
+      vx: Math.cos(ang) * SAUCER_BULLET_SPEED,
+      vy: Math.sin(ang) * SAUCER_BULLET_SPEED,
+      life: 1.6,
+    });
+    sfxFire();
+  }
+
+  // ---------- game flow ----------
+  function resetGame(){
+    ship = newShip();
+    bullets = [];
+    asteroids = [];
+    particles = [];
+    saucer = null;
+    saucerBullets = [];
+    score = 0;
+    lives = STARTING_LIVES;
+    level = 1;
+    nextExtraLifeAt = EXTRA_LIFE_SCORE;
+    shipRespawnTimer = 0;
+    saucerTimer = rand(SAUCER_MIN_INTERVAL, SAUCER_MAX_INTERVAL);
+    sinceLevelStart = 0;
+    startLevel();
+    updateHud();
+  }
+
+  function startLevel(){
+    asteroids = [];
+    const count = Math.min(ASTEROID_START_COUNT + level - 1, 11);
+    for (let i = 0; i < count; i++) asteroids.push(newAsteroid('large'));
+    sinceLevelStart = 0;
+  }
+
+  function nextLevel(){
+    level++;
+    updateHud();
+    flashPanel('level');
+    startLevel();
+  }
+
+  // ---------- HUD ----------
+  const scoreEl = document.getElementById('score');
+  const levelEl = document.getElementById('level');
+  const livesIconsEl = document.getElementById('livesIcons');
+  function livesSvg(){
+    return '<svg viewBox="0 0 20 20"><polygon points="10,2 17,17 3,17" fill="none" stroke="#00ff66" stroke-width="1.5"/></svg>';
+  }
+  function updateHud(){
+    scoreEl.textContent = score;
+    levelEl.textContent = level;
+    livesIconsEl.innerHTML = Array.from({length: Math.max(0, lives)}, livesSvg).join('');
+  }
+  function flashPanel(which){
+    const target = which === 'level' ? levelEl.parentElement : livesIconsEl.parentElement;
+    target.classList.remove('level-up-flash');
+    void target.offsetWidth; // restart the animation even if it's already flashing
+    target.classList.add('level-up-flash');
+  }
+
+  // ---------- input ----------
+  const keys = {};
+  const touchState = { left: false, right: false, thrust: false, fire: false };
+
+  function handleInput(dt){
+    if (!ship) return;
+    const left = keys['ArrowLeft'] || keys['KeyA'] || touchState.left;
+    const right = keys['ArrowRight'] || keys['KeyD'] || touchState.right;
+    const thrust = keys['ArrowUp'] || keys['KeyW'] || touchState.thrust;
+    const fire = keys['Space'] || touchState.fire;
+
+    if (ship.alive){
+      if (left) ship.angle -= SHIP_TURN_SPEED * dt;
+      if (right) ship.angle += SHIP_TURN_SPEED * dt;
+      ship.thrusting = !!thrust;
+      if (thrust){
+        ship.vx += Math.cos(ship.angle) * SHIP_THRUST * dt;
+        ship.vy += Math.sin(ship.angle) * SHIP_THRUST * dt;
+        const sp = Math.hypot(ship.vx, ship.vy);
+        if (sp > SHIP_MAX_SPEED){
+          ship.vx = ship.vx / sp * SHIP_MAX_SPEED;
+          ship.vy = ship.vy / sp * SHIP_MAX_SPEED;
+        }
+      }
+      if (fire) fireBullet();
+    }
+  }
+
+  // ---------- update ----------
+  function update(dt){
+    handleInput(dt);
+
+    if (ship.alive){
+      ship.x += ship.vx * dt;
+      ship.y += ship.vy * dt;
+      wrap(ship);
+      if (ship.invuln > 0) ship.invuln -= dt;
+      if (ship.fireTimer > 0) ship.fireTimer -= dt;
+    } else if (shipRespawnTimer > 0){
+      shipRespawnTimer -= dt;
+      if (shipRespawnTimer <= 0 && lives >= 0){
+        if (!trySpawnShip()) shipRespawnTimer = 0.2; // try again shortly
+      }
+    }
+
+    for (const b of bullets){ b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; wrap(b); }
+    bullets = bullets.filter(b => b.life > 0);
+    for (const b of saucerBullets){ b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; wrap(b); }
+    saucerBullets = saucerBullets.filter(b => b.life > 0);
+
+    for (const a of asteroids){ a.x += a.vx * dt; a.y += a.vy * dt; a.rot += a.rotSpeed * dt; wrap(a); }
+
+    for (const p of particles){ p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; }
+    particles = particles.filter(p => p.life > 0);
+
+    // saucer AI
+    if (saucer){
+      saucer.x += saucer.vx * dt;
+      saucer.dirTimer -= dt;
+      if (saucer.dirTimer <= 0){
+        saucer.vy = rand(-70, 70);
+        saucer.dirTimer = rand(0.8, 1.8);
+      }
+      saucer.y += saucer.vy * dt;
+      saucer.y = Math.max(20, Math.min(H - 20, saucer.y));
+      saucer.fireTimer -= dt;
+      if (saucer.fireTimer <= 0){
+        fireSaucerBullet();
+        saucer.fireTimer = SAUCER_FIRE_INTERVAL * rand(0.8, 1.3);
+      }
+      if (saucer.x < -40 || saucer.x > W + 40){
+        saucer = null;
+        sfxSaucerStop();
+      }
+    } else {
+      saucerTimer -= dt;
+      if (saucerTimer <= 0 && asteroids.length > 0){
+        spawnSaucer();
+        saucerTimer = rand(SAUCER_MIN_INTERVAL, SAUCER_MAX_INTERVAL);
+      }
+    }
+
+    checkCollisions();
+
+    if (asteroids.length === 0 && saucer === null){
+      nextLevel();
+    }
+
+    // heartbeat tempo scales with remaining asteroid count
+    updateHeartbeat(asteroids.length);
+  }
+
+  function checkCollisions(){
+    // bullets vs asteroids
+    for (let i = asteroids.length - 1; i >= 0; i--){
+      const a = asteroids[i];
+      let hit = false;
+      for (let j = bullets.length - 1; j >= 0; j--){
+        if (circleHit(a, bullets[j])){
+          bullets.splice(j, 1);
+          hit = true;
+          break;
+        }
+      }
+      if (hit){
+        asteroids.splice(i, 1);
+        splitAsteroid(a);
+      }
+    }
+    // saucer bullets vs asteroids (the saucer can clear its own path)
+    for (let i = asteroids.length - 1; i >= 0; i--){
+      const a = asteroids[i];
+      for (let j = saucerBullets.length - 1; j >= 0; j--){
+        if (circleHit(a, saucerBullets[j])){
+          saucerBullets.splice(j, 1);
+          asteroids.splice(i, 1);
+          splitAsteroid(a);
+          break;
+        }
+      }
+    }
+    // bullets vs saucer
+    if (saucer){
+      for (let j = bullets.length - 1; j >= 0; j--){
+        if (circleHit(saucer, bullets[j])){
+          bullets.splice(j, 1);
+          score += SAUCER_SCORES[saucer.size];
+          updateHud();
+          maybeExtraLife();
+          spawnDebris(saucer.x, saucer.y, 12);
+          sfxBang(saucer.size === 'small' ? 'medium' : 'large');
+          sfxSaucerStop();
+          saucer = null;
+          break;
+        }
+      }
+    }
+    if (!ship.alive || ship.invuln > 0) return;
+    // ship vs asteroids
+    for (const a of asteroids){
+      if (circleHit(ship, a)){ killShip(); return; }
+    }
+    // ship vs saucer + its bullets
+    if (saucer && circleHit(ship, saucer)){ killShip(); return; }
+    for (let j = saucerBullets.length - 1; j >= 0; j--){
+      if (circleHit(ship, saucerBullets[j])){
+        saucerBullets.splice(j, 1);
+        killShip();
+        return;
+      }
+    }
+  }
+
+  // ---------- drawing ----------
+  function drawShip(s){
+    if (!s.alive) return;
+    if (s.invuln > 0 && Math.floor(s.invuln * 8) % 2 === 0) return; // blink while invulnerable
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.angle);
+    ctx.strokeStyle = '#e8e8f0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(SHIP_SIZE, 0);
+    ctx.lineTo(-SHIP_SIZE * 0.7, SHIP_SIZE * 0.7);
+    ctx.lineTo(-SHIP_SIZE * 0.35, 0);
+    ctx.lineTo(-SHIP_SIZE * 0.7, -SHIP_SIZE * 0.7);
+    ctx.closePath();
+    ctx.stroke();
+    if (s.thrusting){
+      ctx.strokeStyle = '#ff8800';
+      ctx.beginPath();
+      ctx.moveTo(-SHIP_SIZE * 0.35, 0);
+      ctx.lineTo(-SHIP_SIZE * 1.3, 0);
+      ctx.moveTo(-SHIP_SIZE * 0.5, -SHIP_SIZE * 0.25);
+      ctx.lineTo(-SHIP_SIZE * 1.0, 0);
+      ctx.lineTo(-SHIP_SIZE * 0.5, SHIP_SIZE * 0.25);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawAsteroid(a){
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    ctx.rotate(a.rot);
+    ctx.strokeStyle = '#b8b8c8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const n = a.shape.length;
+    for (let i = 0; i < n; i++){
+      const ang = (i / n) * Math.PI * 2;
+      const r = a.r * a.shape[i];
+      const x = Math.cos(ang) * r, y = Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSaucer(s){
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.strokeStyle = '#00ff66';
+    ctx.lineWidth = 2;
+    const r = s.r;
+    ctx.beginPath();
+    ctx.moveTo(-r, 0); ctx.lineTo(-r * 0.4, -r * 0.5); ctx.lineTo(r * 0.4, -r * 0.5); ctx.lineTo(r, 0);
+    ctx.lineTo(r * 0.4, r * 0.5); ctx.lineTo(-r * 0.4, r * 0.5); ctx.closePath();
+    ctx.moveTo(-r * 0.4, -r * 0.5); ctx.lineTo(-r * 0.2, -r); ctx.lineTo(r * 0.2, -r); ctx.lineTo(r * 0.4, -r * 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBullets(list, color){
+    ctx.fillStyle = color;
+    for (const b of list){
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawParticles(){
+    for (const p of particles){
+      const a = Math.max(0, p.life / p.maxLife);
+      ctx.fillStyle = 'rgba(232,232,240,' + a + ')';
+      ctx.fillRect(p.x, p.y, 2, 2);
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, W, H);
+    drawParticles();
+    for (const a of asteroids) drawAsteroid(a);
+    if (saucer) drawSaucer(saucer);
+    drawBullets(bullets, '#e8e8f0');
+    drawBullets(saucerBullets, '#ff5050');
+    drawShip(ship);
+  }
+
+  // ---------- main loop ----------
+  function loop(time){
+    if (!lastTime) lastTime = time;
+    let dt = (time - lastTime) / 1000;
+    lastTime = time;
+    dt = Math.min(dt, 1 / 20); // clamp to avoid tunneling on lag spikes/tab switches
+
+    if (state === 'playing'){
+      update(dt);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- leaderboard ----------
+  const LEADERBOARD_API = 'https://asteroids-leaderboard.mzhussein42.workers.dev/leaderboard';
+  const LEADERBOARD_KEY = 'asteroids_leaderboard_v1';
+  const LEADERBOARD_MAX = 10;
+  const LEADERBOARD_SHOW = 5;
+
+  const BANNED_SUBSTRINGS = [
+    'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
+    'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
+    'nazi', 'hitler', 'kike', 'chink', 'spic', 'wetback', 'tranny',
+  ];
+  function normalizeForFilter(s){
+    return String(s)
+      .toLowerCase()
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+      .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+      .replace(/@/g, 'a').replace(/\$/g, 's')
+      .replace(/[^a-z]/g, '');
+  }
+  function isBannedName(name){
+    const n = normalizeForFilter(name);
+    return BANNED_SUBSTRINGS.some((w) => n.includes(w));
+  }
+  const ANON_SUBSTRINGS = [
+    'anon', 'anonymous', 'unknown', 'nobody', 'noone', 'nameless', 'noname', 'incognito',
+  ];
+  function isAnonName(name){
+    const n = normalizeForFilter(name);
+    return ANON_SUBSTRINGS.some((w) => n.includes(w));
+  }
+
+  function loadLocalLeaderboard(){
+    try {
+      const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e){ return []; }
+  }
+  function saveLocalLeaderboard(list){
+    try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list)); } catch (e){ /* storage unavailable, ignore */ }
+  }
+  function addToLocalLeaderboard(name, s){
+    const list = loadLocalLeaderboard();
+    list.push({ name: name || 'ANON', score: s });
+    list.sort((a, b) => b.score - a.score);
+    list.length = Math.min(list.length, LEADERBOARD_MAX);
+    saveLocalLeaderboard(list);
+    return list;
+  }
+  async function loadLeaderboard(){
+    try {
+      const res = await fetch(LEADERBOARD_API);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return list;
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return loadLocalLeaderboard();
+  }
+  async function qualifiesForLeaderboard(s){
+    if (s <= 0) return false;
+    const list = await loadLeaderboard();
+    if (list.length < LEADERBOARD_MAX) return true;
+    return s > list[list.length - 1].score;
+  }
+  async function addToLeaderboard(name, s){
+    try {
+      const res = await fetch(LEADERBOARD_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || 'ANON', score: s }),
+      });
+      if (res.status === 400){
+        const body = await res.json().catch(() => ({}));
+        if (body && body.error === 'inappropriate name') return { rejected: true, reason: 'inappropriate' };
+        if (body && body.error === 'anonymous name') return { rejected: true, reason: 'anonymous' };
+      }
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return { list };
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return { list: addToLocalLeaderboard(name, s) };
+  }
+  function renderLeaderboard(listEl, entries, highlightIndex){
+    listEl.innerHTML = '';
+    const shown = entries.slice(0, LEADERBOARD_SHOW);
+    if (shown.length === 0){
+      const li = document.createElement('li');
+      li.className = 'lb-empty';
+      li.textContent = 'No scores yet — be the first!';
+      listEl.appendChild(li);
+      return;
+    }
+    shown.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (i === highlightIndex) li.className = 'lb-highlight';
+      const rank = document.createElement('span'); rank.className = 'lb-rank'; rank.textContent = (i + 1) + '.';
+      const name = document.createElement('span'); name.className = 'lb-name'; name.textContent = String(e.name || '???').slice(0, 12);
+      const sc = document.createElement('span'); sc.className = 'lb-score'; sc.textContent = e.score;
+      li.appendChild(rank); li.appendChild(name); li.appendChild(sc);
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- audio ----------
+  let audioCtx = null;
+  let musicGain, sfxGain;
+  let muted = false;
+  let heartbeatTimer = null;
+  let heartbeatToggle = false;
+  let heartbeatInterval = 1.0;
+  let thrustNoiseNode = null, thrustGainNode = null;
+  let saucerOscBig = null, saucerGainBig = null;
+  let saucerOscSmall = null, saucerGainSmall = null;
+
+  function ensureAudio(){
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = muted ? 0 : 0.18;
+    musicGain.connect(audioCtx.destination);
+    sfxGain = audioCtx.createGain();
+    sfxGain.gain.value = muted ? 0 : 0.22;
+    sfxGain.connect(audioCtx.destination);
+  }
+
+  function beep(freq, duration, type, gainNode, peak){
+    if (!audioCtx || muted) return;
+    if (peak === undefined) peak = 1;
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    osc.type = type || 'square';
+    osc.frequency.value = freq;
+    const t = audioCtx.currentTime;
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(peak, t + 0.01);
+    env.gain.linearRampToValueAtTime(0, t + duration);
+    osc.connect(env);
+    env.connect(gainNode);
+    osc.start(t);
+    osc.stop(t + duration + 0.02);
+  }
+
+  function noiseBurst(duration, gainNode, peak, highpass){
+    if (!audioCtx || muted) return;
+    const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = highpass ? 'highpass' : 'lowpass';
+    filter.frequency.value = highpass ? 4000 : 900;
+    const env = audioCtx.createGain();
+    const t = audioCtx.currentTime;
+    env.gain.setValueAtTime(peak, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    noise.connect(filter);
+    filter.connect(env);
+    env.connect(gainNode);
+    noise.start(t);
+    noise.stop(t + duration + 0.01);
+  }
+
+  function sfxFire(){ beep(1100, 0.08, 'square', sfxGain, 0.5); }
+  function sfxBang(size){
+    const dur = size === 'large' ? 0.35 : size === 'medium' ? 0.25 : 0.15;
+    noiseBurst(dur, sfxGain, 0.6, false);
+  }
+  function sfxShipExplode(){ noiseBurst(0.6, sfxGain, 0.7, false); }
+  function sfxExtraLife(){
+    if (!audioCtx || muted) return;
+    [660, 880, 1100].forEach((f, i) => beep(f, 0.12, 'square', sfxGain, 0.5 * (1 - i * 0.1)));
+  }
+  function sfxHyperspace(){
+    if (!audioCtx || muted) return;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const env = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(1800, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.25);
+    env.gain.setValueAtTime(0.35, t);
+    env.gain.linearRampToValueAtTime(0, t + 0.25);
+    osc.connect(env); env.connect(sfxGain);
+    osc.start(t); osc.stop(t + 0.26);
+  }
+  function sfxSaucerStart(size){
+    if (!audioCtx || muted) return;
+    sfxSaucerStop();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = size === 'small' ? 480 : 220;
+    gain.gain.value = 0.12;
+    osc.connect(gain); gain.connect(sfxGain);
+    osc.start();
+    if (size === 'small'){ saucerOscSmall = osc; saucerGainSmall = gain; }
+    else { saucerOscBig = osc; saucerGainBig = gain; }
+  }
+  function sfxSaucerStop(){
+    if (saucerOscBig){ try { saucerOscBig.stop(); } catch(e){} saucerOscBig = null; }
+    if (saucerOscSmall){ try { saucerOscSmall.stop(); } catch(e){} saucerOscSmall = null; }
+  }
+
+  // The classic two-note "heartbeat" bass pulse that speeds up as fewer
+  // asteroids remain - simple alternating low tones, not a melody, no
+  // copyright concerns; timing driven by remaining asteroid count.
+  function updateHeartbeat(asteroidCount){
+    if (!musicPlaying) return;
+    const minInterval = 0.28, maxInterval = 1.1;
+    const t = Math.max(0, Math.min(1, 1 - asteroidCount / 10));
+    heartbeatInterval = maxInterval - (maxInterval - minInterval) * t;
+  }
+  let musicPlaying = false;
+  function scheduleHeartbeat(){
+    if (!musicPlaying) return;
+    beep(heartbeatToggle ? 100 : 80, 0.12, 'square', musicGain, 0.6);
+    heartbeatToggle = !heartbeatToggle;
+    heartbeatTimer = setTimeout(scheduleHeartbeat, heartbeatInterval * 1000);
+  }
+  function startMusic(){
+    ensureAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (musicPlaying) return;
+    musicPlaying = true;
+    scheduleHeartbeat();
+  }
+  function stopMusic(){
+    musicPlaying = false;
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
+    sfxSaucerStop();
+  }
+  function toggleMute(){
+    muted = !muted;
+    if (musicGain) musicGain.gain.value = muted ? 0 : 0.18;
+    if (sfxGain) sfxGain.gain.value = muted ? 0 : 0.22;
+    muteBtn.textContent = muted ? 'UNMUTE SOUND' : 'MUTE SOUND';
+  }
+
+  // continuous thrust rumble, started/stopped as the thrust key toggles
+  let wasThrusting = false;
+  function updateThrustAudio(){
+    if (!audioCtx) return;
+    const thrusting = ship && ship.alive && ship.thrusting && state === 'playing';
+    if (thrusting && !wasThrusting){
+      const bufferSize = audioCtx.sampleRate * 2;
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+      thrustNoiseNode = audioCtx.createBufferSource();
+      thrustNoiseNode.buffer = buffer;
+      thrustNoiseNode.loop = true;
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 220;
+      thrustGainNode = audioCtx.createGain();
+      thrustGainNode.gain.value = muted ? 0 : 0.15;
+      thrustNoiseNode.connect(filter);
+      filter.connect(thrustGainNode);
+      thrustGainNode.connect(sfxGain);
+      thrustNoiseNode.start();
+    } else if (!thrusting && wasThrusting){
+      if (thrustNoiseNode){ try { thrustNoiseNode.stop(); } catch(e){} thrustNoiseNode = null; }
+    }
+    wasThrusting = thrusting;
+  }
+
+  // ---------- overlays / elements ----------
+  const startOverlay = document.getElementById('startOverlay');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const finalScoreEl = document.getElementById('finalScore');
+  const lbStartEl = document.getElementById('lbStart');
+  const lbOverEl = document.getElementById('lbOver');
+  const lbOverWrap = document.getElementById('lbOverWrap');
+  const nameEntry = document.getElementById('nameEntry');
+  const nameInput = document.getElementById('nameInput');
+  const nameErrorEl = document.getElementById('nameError');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const exitBtn = document.getElementById('exitBtn');
+
+  let gameOverToken = 0;
+
+  async function gameOver(){
+    state = 'over';
+    const finalScore = score;
+    const myToken = ++gameOverToken;
+    finalScoreEl.textContent = 'Score: ' + finalScore;
+    stopMusic();
+
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = true;
+    restartBtn.hidden = true;
+    exitBtn.hidden = true;
+    overOverlay.hidden = false;
+
+    const qualifies = await qualifiesForLeaderboard(finalScore);
+    if (myToken !== gameOverToken) return;
+
+    if (qualifies){
+      nameEntry.hidden = false;
+      nameInput.value = '';
+      nameErrorEl.hidden = true;
+      setTimeout(() => nameInput.focus(), 50);
+    } else {
+      lbOverWrap.hidden = false;
+      renderLeaderboard(lbOverEl, await loadLeaderboard(), -1);
+      restartBtn.hidden = false;
+    }
+    if (myToken !== gameOverToken) return;
+  }
+
+  async function submitScore(){
+    const finalScore = score;
+    const myToken = gameOverToken;
+    const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
+
+    if (isAnonName(name)){
+      nameErrorEl.textContent = "No hiding - you can't hide behind your shame. Enter a real name.";
+      nameErrorEl.hidden = false;
+      return;
+    }
+    if (isBannedName(name)){
+      nameErrorEl.textContent = 'Please choose a different name.';
+      nameErrorEl.hidden = false;
+      return;
+    }
+    nameErrorEl.hidden = true;
+
+    submitScoreBtn.disabled = true;
+    const result = await addToLeaderboard(name, finalScore);
+    submitScoreBtn.disabled = false;
+    if (myToken !== gameOverToken) return;
+
+    if (result.rejected){
+      nameErrorEl.textContent = result.reason === 'anonymous'
+        ? "No hiding - you can't hide behind your shame. Enter a real name."
+        : 'Please choose a different name.';
+      nameErrorEl.hidden = false;
+      return;
+    }
+
+    const list = result.list;
+    const index = list.findIndex(e => e.name === name && e.score === finalScore);
+    nameEntry.hidden = true;
+    lbOverWrap.hidden = false;
+    restartBtn.hidden = false;
+    renderLeaderboard(lbOverEl, list, index);
+    renderLeaderboard(lbStartEl, list, -1);
+  }
+
+  function startGame(){
+    resizeCanvas();
+    resetGame();
+    state = 'playing';
+    startOverlay.hidden = true;
+    overOverlay.hidden = true;
+    pauseOverlay.hidden = true;
+    exitBtn.hidden = false;
+    ensureAudio();
+    startMusic();
+  }
+
+  function togglePause(){
+    if (state === 'playing'){
+      state = 'paused';
+      pauseOverlay.hidden = false;
+      stopMusic();
+    } else if (state === 'paused'){
+      state = 'playing';
+      pauseOverlay.hidden = true;
+      startMusic();
+    }
+  }
+
+  function exitGame(){
+    if (state !== 'playing' && state !== 'paused') return;
+    state = 'ready';
+    stopMusic();
+    pauseOverlay.hidden = true;
+    overOverlay.hidden = true;
+    exitBtn.hidden = true;
+    startOverlay.hidden = false;
+    loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+  }
+
+  // ---------- input wiring ----------
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement === nameInput){
+      if (e.code === 'Enter'){ e.preventDefault(); submitScore(); }
+      return;
+    }
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+
+    if (e.code === 'Enter'){
+      if (state === 'ready' || (state === 'over' && !restartBtn.hidden)) startGame();
+      return;
+    }
+    if (e.code === 'KeyP'){ togglePause(); return; }
+    if (e.code === 'KeyM'){ toggleMute(); return; }
+    if (e.code === 'Escape'){ exitGame(); return; }
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight'){ if (state === 'playing') hyperspace(); return; }
+
+    keys[e.code] = true;
+  });
+  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  submitScoreBtn.addEventListener('click', submitScore);
+  muteBtn.addEventListener('click', toggleMute);
+  pauseBtn.addEventListener('click', togglePause);
+  exitBtn.addEventListener('click', exitGame);
+
+  document.querySelectorAll('.touch-controls button[data-action]').forEach(btn => {
+    const action = btn.dataset.action;
+    const start = (e) => {
+      if (e) e.preventDefault();
+      ensureAudio();
+      if (action === 'left') touchState.left = true;
+      else if (action === 'right') touchState.right = true;
+      else if (action === 'thrust') touchState.thrust = true;
+      else if (action === 'fire') touchState.fire = true;
+      else if (action === 'hyperspace'){ if (state === 'playing') hyperspace(); }
+    };
+    const stop = (e) => {
+      if (e) e.preventDefault();
+      if (action === 'left') touchState.left = false;
+      else if (action === 'right') touchState.right = false;
+      else if (action === 'thrust') touchState.thrust = false;
+      else if (action === 'fire') touchState.fire = false;
+    };
+    btn.addEventListener('touchstart', start, {passive:false});
+    btn.addEventListener('touchend', stop);
+    btn.addEventListener('touchcancel', stop);
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+  });
+
+  // keep the thrust-rumble sound in sync every frame
+  setInterval(updateThrustAudio, 50);
+
+  // ---------- init ----------
+  resizeCanvas();
+  ship = newShip();
+  bullets = []; asteroids = []; particles = []; saucerBullets = [];
+  score = 0; lives = STARTING_LIVES; level = 1;
+  updateHud();
+  loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

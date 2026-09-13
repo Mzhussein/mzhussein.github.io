@@ -1,0 +1,17 @@
+name = "asteroids-game"
+compatibility_date = "2024-11-01"
+
+# Serves the game as a static asset. The GitHub Actions workflow
+# (.github/workflows/deploy-asteroids-game.yml) copies asteroids/index.html
+# into ./public before running `wrangler deploy`, so this folder is
+# CI-generated and not committed itself.
+[assets]
+directory = "./public"
+
+# Custom domain (asteroids.mzhservices.com) is attached to this Worker via
+# the Cloudflare dashboard (Workers & Pages -> asteroids-game -> Settings
+# -> Domains & Routes) - it stays attached across redeploys of this same
+# worker name, nothing to configure here for it. See asteroids/backend/
+# README.md for the one-time setup steps (this Worker deploys fine
+# without it - the domain step just points asteroids.mzhservices.com at
+# whatever this Worker is already serving).
