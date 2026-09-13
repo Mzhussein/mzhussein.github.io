@@ -44,6 +44,17 @@ function isBannedName(name) {
   return BANNED_SUBSTRINGS.some((w) => n.includes(w));
 }
 
+// No hiding on the leaderboard: reject "anon" and its variants (including
+// a blank name, which falls back to the literal string "ANON" below and
+// so gets caught by the same check).
+const ANON_SUBSTRINGS = [
+  'anon', 'anonymous', 'unknown', 'nobody', 'noone', 'nameless', 'noname', 'incognito',
+];
+function isAnonName(name) {
+  const n = normalizeForFilter(name);
+  return ANON_SUBSTRINGS.some((w) => n.includes(w));
+}
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -102,6 +113,9 @@ export default {
       }
       if (isBannedName(name)) {
         return json({ error: 'inappropriate name' }, 400);
+      }
+      if (isAnonName(name)) {
+        return json({ error: 'anonymous name' }, 400);
       }
 
       const list = await getLeaderboard(env);

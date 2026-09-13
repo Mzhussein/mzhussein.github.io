@@ -587,6 +587,18 @@
     return BANNED_SUBSTRINGS.some((w) => n.includes(w));
   }
 
+  // No hiding on the leaderboard: reject "anon" and its variants (also
+  // catches a blank entry, which falls back to the literal string "ANON"
+  // below and so gets caught by this same check). Keep in sync with
+  // backend/worker.js.
+  const ANON_SUBSTRINGS = [
+    'anon', 'anonymous', 'unknown', 'nobody', 'noone', 'nameless', 'noname', 'incognito',
+  ];
+  function isAnonName(name){
+    const n = normalizeForFilter(name);
+    return ANON_SUBSTRINGS.some((w) => n.includes(w));
+  }
+
   function loadLocalLeaderboard(){
     try {
       const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
@@ -620,9 +632,10 @@
     if (list.length < LEADERBOARD_MAX) return true;
     return s > list[list.length - 1].score;
   }
-  // Returns { list } on success, or { rejected: true } if the name was
-  // turned away for being inappropriate (as opposed to the worker just
-  // being unreachable, which falls back to local storage instead).
+  // Returns { list } on success, or { rejected: true, reason } if the name
+  // was turned away (as opposed to the worker just being unreachable,
+  // which falls back to local storage instead). reason is 'inappropriate'
+  // or 'anonymous', matching the worker's error strings.
   async function addToLeaderboard(name, s){
     try {
       const res = await fetch(LEADERBOARD_API, {
@@ -632,7 +645,8 @@
       });
       if (res.status === 400){
         const body = await res.json().catch(() => ({}));
-        if (body && body.error === 'inappropriate name') return { rejected: true };
+        if (body && body.error === 'inappropriate name') return { rejected: true, reason: 'inappropriate' };
+        if (body && body.error === 'anonymous name') return { rejected: true, reason: 'anonymous' };
       }
       if (!res.ok) throw new Error('bad status ' + res.status);
       const list = await res.json();
@@ -890,7 +904,13 @@
 
     // Instant client-side check first - no need to round-trip to the
     // worker just to tell someone their name got flagged.
+    if (isAnonName(name)){
+      nameErrorEl.textContent = "No hiding - you can't hide behind your shame. Enter a real name.";
+      nameErrorEl.hidden = false;
+      return;
+    }
     if (isBannedName(name)){
+      nameErrorEl.textContent = 'Please choose a different name.';
       nameErrorEl.hidden = false;
       return;
     }
@@ -904,6 +924,9 @@
     if (result.rejected){
       // Defense-in-depth: the worker rejected it even though our local
       // filter missed it. Keep the entry form open so they can retry.
+      nameErrorEl.textContent = result.reason === 'anonymous'
+        ? "No hiding - you can't hide behind your shame. Enter a real name."
+        : 'Please choose a different name.';
       nameErrorEl.hidden = false;
       return;
     }
