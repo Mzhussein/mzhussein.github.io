@@ -900,20 +900,22 @@
   const NOTE_FREQ = {
     C2: 65.41, D2: 73.42, E2: 82.41, F2: 87.31, G2: 98.00, GS2: 103.83, A2: 110.00, B2: 123.47,
     C3: 130.81, D3: 146.83, E3: 164.81, GS3: 207.65, A3: 220.00, B3: 246.94,
+    E4: 329.63, F4: 349.23, G4: 392.00, GS4: 415.30,
     A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33,
     E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
   };
 
   // "Korobeiniki" (Tetris Theme A / Game Boy Tetris "Music A") - traditional
-  // Russian folk melody, public domain. Verified note-for-note (pitch and
-  // rhythm both) against an independent MIDI transcription of the actual
-  // Game Boy arrangement (vgmusic.com), including its 150 BPM tempo and its
-  // bass line - so this is no longer a guess. That same cross-check showed
-  // the loop is just this one verse repeating (scheduleLoop below handles
-  // the repeat) - an earlier version of this code also had a "bridge"
-  // section here, sourced from a flute sheet-music arrangement, that turned
-  // out not to be part of the actual game loop at all.
-  // [note or null for rest, beat divisor - 4 = quarter, 8 = eighth, negative = dotted]
+  // Russian folk melody, public domain. All three parts below (melody, bass,
+  // harmony) are transcribed from the same independent multi-track MIDI
+  // arrangement of the actual Game Boy soundtrack (vgmusic.com) - not
+  // guessed - including its 150 BPM tempo. That source also showed the loop
+  // is just this one verse repeating (scheduleLoop handles the repeat) - an
+  // earlier version of this code had a "bridge" section here, sourced from
+  // a flute sheet-music arrangement, that turned out not to be part of the
+  // actual game loop at all.
+  // [note or null for rest, beat divisor - 4 = quarter, 8 = eighth, 16 =
+  // sixteenth, negative = dotted]
   const MELODY = [
     ['E5',4],['B4',8],['C5',8],['D5',4],['C5',8],['B4',8],
     ['A4',4],['A4',8],['C5',8],['E5',4],['D5',8],['C5',8],
@@ -940,6 +942,21 @@
     ['A2',8],['E3',8],['A2',8],['E3',8],['A2',2]
   ];
 
+  // Harmony / countermelody, from the same source's "Staff-2" part - the
+  // layered second voice that makes this sound like an actual arrangement
+  // instead of one bare lead line.
+  const HARMONY = [
+    ['B4',4],['GS4',8],['A4',8],['B4',8],['E5',16],['D5',16],['A4',8],['GS4',8],
+    ['E4',4],[null,8],['A4',8],['C5',4],['B4',8],['A4',8],
+    ['GS4',16],['GS4',16],['E4',8],['GS4',8],['A4',8],['B4',4],['C5',4],
+    ['A4',4],['E4',4],['E4',4],[null,4],
+
+    ['D3',8],['F4',4],['A4',8],['C5',8],['C5',16],['C5',16],['B4',8],['A4',8],
+    ['G4',-4],['E4',8],['G4',8],['A4',16],['G4',16],['F4',8],['E4',8],
+    ['GS4',8],['E4',8],['GS4',8],['A4',8],['B4',8],['GS4',8],['C5',8],['GS4',8],
+    ['A4',16],['C5',16],['A4',8],['E4',4],['E4',4],[null,4]
+  ];
+
   const BPM = 150;
   const WHOLE_NOTE = (60 / BPM) * 4; // seconds per whole note
   function beatSeconds(divisor){
@@ -951,27 +968,54 @@
     if (audioCtx) return;
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     musicGain = audioCtx.createGain();
-    musicGain.gain.value = muted ? 0 : 0.16;
+    musicGain.gain.value = muted ? 0 : 0.12;
     musicGain.connect(audioCtx.destination);
     sfxGain = audioCtx.createGain();
     sfxGain.gain.value = muted ? 0 : 0.15;
     sfxGain.connect(audioCtx.destination);
   }
 
-  function playNote(freq, startTime, duration, gainNode, type){
+  function playNote(freq, startTime, duration, gainNode, type, peak){
+    if (peak === undefined) peak = 1;
     const osc = audioCtx.createOscillator();
     const env = audioCtx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
     env.gain.setValueAtTime(0, startTime);
-    env.gain.linearRampToValueAtTime(1, startTime + 0.01);
-    env.gain.setValueAtTime(1, startTime + duration - 0.03);
+    env.gain.linearRampToValueAtTime(peak, startTime + 0.01);
+    env.gain.setValueAtTime(peak, startTime + duration - 0.03);
     env.gain.linearRampToValueAtTime(0, startTime + duration);
     osc.connect(env);
     env.connect(gainNode);
     osc.start(startTime);
     osc.stop(startTime + duration + 0.02);
     return osc;
+  }
+
+  // Short filtered-noise tick for a light hi-hat pulse - a simplified,
+  // steady stand-in for the same source's percussion-like third part
+  // (which was a constant-pitch rhythmic layer, i.e. a drum hit encoded
+  // as a note rather than a real pitch).
+  function playHat(startTime, gainNode, peak){
+    const dur = 0.045;
+    const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 7000;
+    const env = audioCtx.createGain();
+    env.gain.setValueAtTime(peak, startTime);
+    env.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+    noise.connect(filter);
+    filter.connect(env);
+    env.connect(gainNode);
+    noise.start(startTime);
+    noise.stop(startTime + dur + 0.01);
+    return noise;
   }
 
   function scheduleLoop(startTime){
@@ -984,7 +1028,7 @@
     let t = startTime;
     for (const [note, divisor] of MELODY){
       const d = beatSeconds(divisor);
-      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square'));
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.9, musicGain, 'square', 1));
       t += d;
     }
     const loopDuration = t - startTime;
@@ -992,8 +1036,21 @@
     let tb = startTime;
     for (const [note, divisor] of BASS){
       const d = beatSeconds(divisor);
-      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], tb, d * 0.9, musicGain, 'triangle'));
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], tb, d * 0.9, musicGain, 'triangle', 0.8));
       tb += d;
+    }
+
+    let th = startTime;
+    for (const [note, divisor] of HARMONY){
+      const d = beatSeconds(divisor);
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], th, d * 0.9, musicGain, 'sawtooth', 0.35));
+      th += d;
+    }
+
+    // light hi-hat pulse, once per beat, for rhythmic drive
+    const beatSec = WHOLE_NOTE / 4;
+    for (let beat = 0, tp = startTime; tp < startTime + loopDuration; beat++, tp = startTime + beat * beatSec){
+      activeMusicOscillators.push(playHat(tp, musicGain, 0.18));
     }
 
     musicTimer = setTimeout(() => {
