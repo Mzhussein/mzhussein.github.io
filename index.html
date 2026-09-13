@@ -283,15 +283,6 @@
     border-color:var(--accent);
   }
   .ab-a{ margin-bottom:14px; } /* diagonal offset, like a classic pad */
-  .touch-row-secondary{
-    display:flex;
-    justify-content:center;
-    margin-top:10px;
-  }
-  .touch-row-secondary button{
-    padding:8px 22px;
-    font-size:0.75rem;
-  }
   footer{
     margin-top:26px;
     color:var(--muted);
@@ -377,8 +368,6 @@
     .dpad-btn{ font-size:0.9rem; }
     .ab-btn{ width:46px; height:46px; font-size:1rem; }
     .ab-a{ margin-bottom:10px; }
-    .touch-row-secondary{ margin-top:6px; }
-    .touch-row-secondary button{ padding:6px 16px; font-size:0.65rem; }
     footer{ display:none; }
   }
 </style>
@@ -473,19 +462,16 @@
 <div class="touch-controls">
   <div class="pad-row">
     <div class="dpad">
-      <button class="dpad-btn dpad-up" data-action="drop" aria-label="Hard drop">&#9650;</button>
+      <button class="dpad-btn dpad-up" data-action="rotate" aria-label="Rotate">&#9650;</button>
       <button class="dpad-btn dpad-left" data-action="left" aria-label="Move left">&#9664;</button>
       <div class="dpad-btn dpad-center" aria-hidden="true"></div>
       <button class="dpad-btn dpad-right" data-action="right" aria-label="Move right">&#9654;</button>
       <button class="dpad-btn dpad-down" data-action="down" aria-label="Soft drop">&#9660;</button>
     </div>
     <div class="ab-pad">
-      <button class="ab-btn ab-b" data-action="rotateccw" aria-label="Rotate left">B</button>
-      <button class="ab-btn ab-a" data-action="rotate" aria-label="Rotate right">A</button>
+      <button class="ab-btn ab-b" data-action="hold" aria-label="Hold">B</button>
+      <button class="ab-btn ab-a" data-action="drop" aria-label="Hard drop">A</button>
     </div>
-  </div>
-  <div class="touch-row-secondary">
-    <button data-action="hold">HOLD</button>
   </div>
 </div>
 
@@ -1454,7 +1440,6 @@
     ensureAudio();
     switch(action){
       case 'rotate': rotate(1); break;
-      case 'rotateccw': rotate(-1); break;
       case 'drop': hardDrop(); break;
       case 'hold': hold(); break;
     }
