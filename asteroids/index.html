@@ -254,6 +254,32 @@
   }
   .fire-btn{ width:72px; height:72px; border-radius:50%; font-size:0.75rem; }
   .hyper-btn{ width:90px; height:40px; font-size:0.6rem; border-radius:8px; }
+  /* Compact score/level/lives readout that sits between the two control
+     pads on mobile (see the media query below) - hidden otherwise, since
+     .touch-controls itself is display:none outside that breakpoint. */
+  .quick-stats{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    align-self:center;
+    gap:3px;
+    background:var(--panel);
+    border:2px solid var(--border);
+    padding:6px 10px;
+  }
+  .qs-score{
+    color:var(--accent);
+    font-weight:bold;
+    font-variant-numeric:tabular-nums;
+  }
+  .qs-row{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    color:var(--muted);
+  }
+  .qs-lives{ display:flex; gap:2px; }
   footer{
     margin-top:26px;
     color:var(--muted);
@@ -276,42 +302,28 @@
     }
     h1{ display:none; }
     .subtitle{ display:none; }
+    /* Score/level/lives move into the touch-controls row (between the two
+       button pads) on mobile instead of a left sidebar - a sidebar costs
+       the board real width on a narrow phone screen, while the gap
+       between the pads already exists and goes unused otherwise. The
+       .side panels (the desktop 3-column layout's info column) are just
+       hidden here; #score/#level/#livesIcons stay the source of truth
+       and updateHud() also mirrors their values into the compact
+       #scoreM/#levelM/#livesIconsM copies below. */
     .layout{
       flex:1 1 auto;
       min-height:0;
       width:100%;
-      display:grid;
-      grid-template-columns:auto minmax(0,1fr);
-      grid-template-rows:auto minmax(0,1fr);
-      grid-template-areas:
-        "stats board"
-        "next  board";
-      gap:2px;
-    }
-    .side-stats{ grid-area:stats; align-self:start; }
-    .side-next{ grid-area:next; align-self:start; }
-    .side{
-      width:auto;
-      flex:0 0 auto;
       display:flex;
-      flex-direction:column;
-      gap:4px;
     }
-    .side .panel{
-      width:56px;
-      padding:4px 5px;
-    }
-    .side .panel h3{ font-size:0.5rem; margin-bottom:2px; }
-    .side .panel .value{ font-size:0.85rem; }
-    .side .lives-icons svg{ width:11px; height:11px; }
-    .controls-list{ display:none; }
+    .side{ display:none; }
     .overlay{ gap:6px; padding:8px; }
     .overlay .blurb{ font-size:0.6rem; }
     .leaderboard h3{ font-size:0.55rem; }
     .leaderboard li{ font-size:0.62rem; }
     #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
     .board-wrap{
-      grid-area:board;
+      flex:1 1 auto;
       height:100%;
       min-height:0;
       min-width:0;
@@ -338,6 +350,10 @@
     .thrust-btn{ width:104px; height:40px; font-size:0.58rem; }
     .fire-btn{ width:60px; height:60px; font-size:0.65rem; }
     .hyper-btn{ width:78px; height:34px; font-size:0.55rem; }
+    .quick-stats{ padding:5px 9px; min-width:64px; }
+    .qs-score{ font-size:0.95rem; }
+    .qs-row{ font-size:0.55rem; }
+    .qs-lives svg{ width:9px; height:9px; }
     footer{ display:none; }
   }
 </style>
@@ -428,6 +444,13 @@
         <button class="arc-btn rot-btn" data-action="right" aria-label="Rotate right">&#8635;</button>
       </div>
       <button class="arc-btn thrust-btn" data-action="thrust" aria-label="Thrust">THRUST</button>
+    </div>
+    <div class="quick-stats">
+      <div class="qs-score" id="scoreM">0</div>
+      <div class="qs-row">
+        <span class="qs-level">L<span id="levelM">1</span></span>
+        <span class="qs-lives lives-icons" id="livesIconsM"></span>
+      </div>
     </div>
     <div class="fire-pad">
       <button class="arc-btn fire-btn" data-action="fire" aria-label="Fire">FIRE</button>
@@ -721,19 +744,35 @@
   const scoreEl = document.getElementById('score');
   const levelEl = document.getElementById('level');
   const livesIconsEl = document.getElementById('livesIcons');
+  // Mobile's compact readout (see .quick-stats, between the control pads)
+  // mirrors these same values - #score/#level/#livesIcons stay the single
+  // source of truth, updateHud() just writes to both places.
+  const scoreMEl = document.getElementById('scoreM');
+  const levelMEl = document.getElementById('levelM');
+  const livesIconsMEl = document.getElementById('livesIconsM');
   function livesSvg(){
     return '<svg viewBox="0 0 20 20"><polygon points="10,2 17,17 3,17" fill="none" stroke="#00ff66" stroke-width="1.5"/></svg>';
   }
   function updateHud(){
     scoreEl.textContent = score;
     levelEl.textContent = level;
-    livesIconsEl.innerHTML = Array.from({length: Math.max(0, lives)}, livesSvg).join('');
+    const livesHtml = Array.from({length: Math.max(0, lives)}, livesSvg).join('');
+    livesIconsEl.innerHTML = livesHtml;
+    scoreMEl.textContent = score;
+    levelMEl.textContent = level;
+    livesIconsMEl.innerHTML = livesHtml;
   }
   function flashPanel(which){
     const target = which === 'level' ? levelEl.parentElement : livesIconsEl.parentElement;
     target.classList.remove('level-up-flash');
     void target.offsetWidth; // restart the animation even if it's already flashing
     target.classList.add('level-up-flash');
+    // also flash the mobile compact readout, since it's the only one
+    // actually visible on the breakpoint where this matters most
+    const mobileTarget = document.querySelector('.quick-stats');
+    mobileTarget.classList.remove('level-up-flash');
+    void mobileTarget.offsetWidth;
+    mobileTarget.classList.add('level-up-flash');
   }
 
   // ---------- input ----------
