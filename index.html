@@ -958,30 +958,44 @@
   ];
 
   // The full recording isn't just this one verse looping - it's verse,
-  // verse, then a ~12.8s arpeggio interlude (melody rests, this pattern
-  // takes over) before repeating. Confirmed by pitch-tracking an actual
+  // verse, then a ~12.8s interlude (melody rests, this pattern takes
+  // over) before repeating. Confirmed by pitch-tracking an actual
   // recording of the piece: the verse's opening phrase reliably recurs
   // every ~38.6s, not every ~12.8s, with this figure filling the gap
   // between each pair of verses, following the same chord changes as
   // BASS above (Am, then the raised-7th E/G#-rooted chord), one octave
-  // up, as a featured foreground line rather than background harmony.
+  // up, as a featured foreground part rather than background harmony.
   //
-  // It's a broken-chord arpeggio (root-third-fifth cycling fast to fake
-  // a full chord on one voice - a standard single-channel chiptune
-  // technique), not a flat two-note alternation: a closer look at the
-  // recording's spectrum turned up a quieter third pitch (C4 alongside
-  // A3, B3 alongside G#3) whose presence is confirmed by its harmonics
-  // matching frequencies that first looked like an independent voice
-  // (e.g. C4's 3rd harmonic lands within 1Hz of G5) but are fully
-  // explained once C4 itself is included as a real note.
+  // It's a repeated full chord STAB, not an arpeggio: isolating a clean
+  // snapshot of the recording's spectrum during this section (an FFT of
+  // a single ~150ms window, away from any note's attack transient)
+  // showed A3, C4 and E4 all present at once with real, comparable
+  // magnitude - not one at a time. So this plays the full A-minor triad
+  // (and the parallel chord for the other half) together, repeated at
+  // a driving sixteenth-note pace - a "machine-gun" chord stab, which
+  // is what onset-detecting the recording's energy envelope in this
+  // section actually shows (repeated hits roughly every tenth of a
+  // second, not every eighth-note).
+  function scheduleChordSequence(seq, startTime, type, peak){
+    let t = startTime;
+    for (const [chord, divisor] of seq){
+      const d = beatSeconds(divisor);
+      if (chord) for (const note of chord) activeMusicOscillators.push(playNote(NOTE_FREQ[note], t, d * 0.6, musicGain, type, peak));
+      t += d;
+    }
+    return t;
+  }
+  const AM_CHORD = ['A3','C4','E4'];
+  const E_CHORD = ['GS3','B3','E4'];
+  function chordPhrase(chord, stabs){
+    return Array.from({length: stabs}, () => [chord, 16]);
+  }
   const INTERLUDE = [
-    ['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],
-
-    ['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],
-
-    ['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],['C4',8],['E4',8],['A3',8],
-
-    ['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',8],['GS3',8],['B3',8],['E4',4]
+    ...chordPhrase(AM_CHORD, 32),
+    ...chordPhrase(E_CHORD, 32),
+    ...chordPhrase(AM_CHORD, 32),
+    ...chordPhrase(E_CHORD, 28),
+    [E_CHORD, 4] // hold the last stab out to close the section
   ];
 
   const BPM = 150;
@@ -1075,7 +1089,7 @@
     // the featured line, so it gets the lead's own timbre/volume rather
     // than the bass's triangle wave (which made it sound like nothing more
     // than the bass pulse continuing, since it was the only voice left)
-    const loopEnd = scheduleSequence(INTERLUDE, melEnd, 'square', 1);
+    const loopEnd = scheduleChordSequence(INTERLUDE, melEnd, 'square', 1);
     const loopDuration = loopEnd - startTime;
 
     // light hi-hat pulse, once per beat for the whole cycle, for rhythmic drive
