@@ -22,6 +22,28 @@ const MAX_ENTRIES = 10;
 const NAME_MAX_LEN = 12;
 const MAX_SCORE = 100000000; // sanity ceiling, well above anything reachable legitimately
 
+// Basic profanity guard for the shared, public leaderboard. Not trying to be
+// exhaustive - just catches the common cases so the family list doesn't get
+// trashed. Checked here (not just in the page) since this endpoint is the
+// real enforcement point: anyone can POST to it directly, bypassing the UI.
+const BANNED_SUBSTRINGS = [
+  'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
+  'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
+  'nazi', 'hitler', 'kike', 'chink', 'spic', 'wetback', 'tranny',
+];
+function normalizeForFilter(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+    .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+    .replace(/@/g, 'a').replace(/\$/g, 's')
+    .replace(/[^a-z]/g, '');
+}
+function isBannedName(name) {
+  const n = normalizeForFilter(name);
+  return BANNED_SUBSTRINGS.some((w) => n.includes(w));
+}
+
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
@@ -77,6 +99,9 @@ export default {
       const score = Number(body.score);
       if (!Number.isInteger(score) || score < 0 || score > MAX_SCORE) {
         return json({ error: 'invalid score' }, 400);
+      }
+      if (isBannedName(name)) {
+        return json({ error: 'inappropriate name' }, 400);
       }
 
       const list = await getLeaderboard(env);
