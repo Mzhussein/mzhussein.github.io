@@ -898,17 +898,23 @@
   let musicPlaying = false;
 
   const NOTE_FREQ = {
-    B1: 61.74, C2: 65.41, D2: 73.42, E2: 82.41,
+    C2: 65.41, D2: 73.42, E2: 82.41, F2: 87.31, G2: 98.00, GS2: 103.83, A2: 110.00, B2: 123.47,
+    C3: 130.81, D3: 146.83, E3: 164.81, GS3: 207.65, A3: 220.00, B3: 246.94,
     A4: 440.00, B4: 493.88, C5: 523.25, D5: 587.33,
-    E5: 659.25, F5: 698.46, G5: 783.99, GS5: 830.61, A5: 880.00
+    E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00
   };
 
-  // "Korobeiniki" (Tetris Theme A) - traditional Russian folk melody, public domain.
-  // Full arrangement as heard in the original game: verse (played twice),
-  // the contrasting mid-song bridge, then the verse twice more to close the loop.
+  // "Korobeiniki" (Tetris Theme A / Game Boy Tetris "Music A") - traditional
+  // Russian folk melody, public domain. Verified note-for-note (pitch and
+  // rhythm both) against an independent MIDI transcription of the actual
+  // Game Boy arrangement (vgmusic.com), including its 150 BPM tempo and its
+  // bass line - so this is no longer a guess. That same cross-check showed
+  // the loop is just this one verse repeating (scheduleLoop below handles
+  // the repeat) - an earlier version of this code also had a "bridge"
+  // section here, sourced from a flute sheet-music arrangement, that turned
+  // out not to be part of the actual game loop at all.
   // [note or null for rest, beat divisor - 4 = quarter, 8 = eighth, negative = dotted]
   const MELODY = [
-    // verse
     ['E5',4],['B4',8],['C5',8],['D5',4],['C5',8],['B4',8],
     ['A4',4],['A4',8],['C5',8],['E5',4],['D5',8],['C5',8],
     ['B4',-4],['C5',8],['D5',4],['E5',4],
@@ -917,38 +923,28 @@
     [null,8],['D5',4],['F5',8],['A5',4],['G5',8],['F5',8],
     ['E5',-4],['C5',8],['E5',4],['D5',8],['C5',8],
     ['B4',4],['B4',8],['C5',8],['D5',4],['E5',4],
-    ['C5',4],['A4',4],['A4',4],[null,4],
-
-    // bridge
-    ['E5',2],['C5',2],
-    ['D5',2],['B4',2],
-    ['C5',2],['A4',2],
-    ['B4',1],
-
-    ['E5',2],['C5',2],
-    ['D5',2],['B4',2],
-    ['C5',4],['E5',4],['A5',2],
-    ['GS5',1],
-
-    // verse again
-    ['E5',4],['B4',8],['C5',8],['D5',4],['C5',8],['B4',8],
-    ['A4',4],['A4',8],['C5',8],['E5',4],['D5',8],['C5',8],
-    ['B4',-4],['C5',8],['D5',4],['E5',4],
-    ['C5',4],['A4',4],['A4',4],[null,4],
-
-    [null,8],['D5',4],['F5',8],['A5',4],['G5',8],['F5',8],
-    [null,8],['E5',4],['C5',8],['E5',4],['D5',8],['C5',8],
-    [null,8],['B4',4],['C5',8],['D5',4],['E5',4],
-    [null,8],['C5',4],['A4',8],['A4',4],[null,4]
+    ['C5',4],['A4',4],['A4',4],[null,4]
   ];
 
-  const BPM = 144;
+  // Bass line, from the same MIDI transcription (its "Staff-1" part) -
+  // the classic chiptune octave-bounce vamp, not a guessed chord cycle.
+  const BASS = [
+    ['E2',8],['E3',8],['E2',8],['E3',8],['E2',8],['E3',8],['E2',8],['E3',8],
+    ['A2',8],['A3',8],['A2',8],['A3',8],['A2',8],['A3',8],['A2',8],['A3',8],
+    ['GS2',8],['GS3',8],['GS2',8],['GS3',8],['E2',8],['E3',8],['E2',8],['E3',8],
+    ['A2',8],['A3',8],['A2',8],['A3',8],['A2',8],['A3',8],['B2',8],['C3',8],
+
+    ['D3',8],['D2',4],['D2',4],['D2',8],['A2',8],['F2',8],
+    ['C2',8],['C3',4],['C3',8],['C2',8],['G2',8],['G2',4],
+    ['B2',8],['B3',4],['B3',4],['E3',4],['GS3',8],
+    ['A2',8],['E3',8],['A2',8],['E3',8],['A2',2]
+  ];
+
+  const BPM = 150;
   const WHOLE_NOTE = (60 / BPM) * 4; // seconds per whole note
   function beatSeconds(divisor){
     return divisor > 0 ? WHOLE_NOTE / divisor : (WHOLE_NOTE / Math.abs(divisor)) * 1.5;
   }
-  // Melody only, matching the source note-for-note - no invented harmony
-  // that might clash with a key change we can't verify by ear.
   let activeMusicOscillators = [];
 
   function ensureAudio(){
@@ -992,6 +988,13 @@
       t += d;
     }
     const loopDuration = t - startTime;
+
+    let tb = startTime;
+    for (const [note, divisor] of BASS){
+      const d = beatSeconds(divisor);
+      if (note) activeMusicOscillators.push(playNote(NOTE_FREQ[note], tb, d * 0.9, musicGain, 'triangle'));
+      tb += d;
+    }
 
     musicTimer = setTimeout(() => {
       if (musicPlaying) scheduleLoop(audioCtx.currentTime + 0.05);
