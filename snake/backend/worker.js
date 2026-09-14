@@ -8,13 +8,36 @@
  * Worker/KV namespace/URL - completely independent of either.
  *
  * Storage: a single Workers KV namespace holding one JSON array under
- * the key "top_scores". That's enough for a top-10 list - no database
- * needed.
+ * the key "top_scores", plus short-lived session-token entries under
+ * "session:<token>" (see the anti-cheat note below). That's enough for
+ * a top-10 list - no database needed.
  *
  * Routes:
- *   GET  /leaderboard         -> [{name, score}, ...]  (current top 10)
- *   POST /leaderboard         -> body {name, score}, returns the
- *                                 updated top 10 after inserting it
+ *   GET  /leaderboard  -> [{name, score}, ...]  (current top 10)
+ *   POST /session      -> {}, returns {token}. Call this once when a
+ *                          game actually starts (see README.md) - the
+ *                          token is what proves real time passed before
+ *                          a score gets submitted.
+ *   POST /leaderboard  -> body {name, score, token}, returns the
+ *                          updated top 10 after inserting it
+ *
+ * Anti-cheat: this endpoint is public and can be POSTed to directly,
+ * bypassing the page entirely - and was, on this repo's Tetris and
+ * Asteroids leaderboards (same forged-99999999-score trick, same worker
+ * pattern). There's no way to fully verify a score from a client-
+ * authoritative game without replaying every move server-side (out of
+ * scope here), but POST /leaderboard now requires a single-use token
+ * from POST /session and rejects any score that isn't plausible for how
+ * much real time has passed since that token was issued (see
+ * scoreIsPlausible below). Snake's scoring is discrete - one apple is
+ * exactly FOOD_SCORE points and can't happen faster than once per
+ * TICK_MIN_MS, both mirrored from the game's own constants - so this
+ * isn't a fuzzy rate guess like the other two games, it's a hard
+ * physical ceiling: no real client can ever produce a higher score than
+ * elapsed-time-in-ticks allows. Every rejection - bad score, missing/
+ * expired/reused token, not enough elapsed time - returns the exact
+ * same generic error, on purpose, so a script probing this API can't
+ * tell which check it tripped.
  *
  * Bind a KV namespace named LEADERBOARD to this Worker (see README.md
  * in this folder for exact steps) before deploying.
@@ -22,7 +45,32 @@
 
 const MAX_ENTRIES = 10;
 const NAME_MAX_LEN = 12;
-const MAX_SCORE = 100000000; // sanity ceiling, well above anything reachable legitimately
+
+// ---- anti-cheat tuning ----
+// MAX_SCORE: a hard ceiling regardless of anything else - a belt-and-
+// suspenders backstop behind scoreIsPlausible below, which is normally
+// the tighter check. 50000 (5000 apples) is already a wildly long game.
+const MAX_SCORE = 50000;
+// A session token (from POST /session) is valid for this long, then KV
+// expires it automatically. 30 minutes comfortably covers a long single
+// sitting without leaving old tokens farmable indefinitely.
+const SESSION_TTL_SECONDS = 1800;
+// Mirrors the game's own tick timing (snake/index.html: FOOD_SCORE,
+// TICK_MIN) - keep these two in sync. Eating an apple takes at least one
+// tick, and no tick is ever shorter than TICK_MIN_MS, so the number of
+// apples eaten can never exceed elapsedMs / TICK_MIN_MS - this is exact,
+// not a generous approximation like the other two games' rate caps
+// (using the *fastest* tick the whole time is already maximally
+// generous to the submitter, since real play starts slower and only
+// reaches TICK_MIN after several apples).
+const FOOD_SCORE = 10;
+const TICK_MIN_MS = 100;
+
+function scoreIsPlausible(score, elapsedMs) {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return false;
+  const maxApples = Math.floor(elapsedMs / TICK_MIN_MS);
+  return score <= maxApples * FOOD_SCORE;
+}
 
 // Basic profanity guard for the shared, public leaderboard. Not trying to be
 // exhaustive - just catches the common cases so the family list doesn't get
@@ -75,12 +123,25 @@ function json(data, status = 200) {
 async function getLeaderboard(env) {
   const raw = await env.LEADERBOARD.get('top_scores');
   if (!raw) return [];
+  let arr;
   try {
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
+    arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) arr = [];
   } catch (e) {
-    return [];
+    arr = [];
   }
+  // Self-healing: silently drop anything that wouldn't pass validation
+  // today - forged scores from before this ceiling existed, or this
+  // project's own leftover "TEST" entries. Runs on every read, so the
+  // very next request cleans the stored list up if it ever needs it.
+  const cleaned = arr.filter((e) =>
+    e && typeof e.name === 'string' && e.name !== 'TEST' &&
+    Number.isInteger(e.score) && e.score >= 0 && e.score <= MAX_SCORE
+  );
+  if (cleaned.length !== arr.length) {
+    await saveLeaderboard(env, cleaned);
+  }
+  return cleaned;
 }
 
 async function saveLeaderboard(env, list) {
@@ -100,6 +161,14 @@ export default {
       return json(list);
     }
 
+    if (url.pathname === '/session' && request.method === 'POST') {
+      const token = crypto.randomUUID();
+      await env.LEADERBOARD.put('session:' + token, String(Date.now()), {
+        expirationTtl: SESSION_TTL_SECONDS,
+      });
+      return json({ token });
+    }
+
     if (url.pathname === '/leaderboard' && request.method === 'POST') {
       let body;
       try {
@@ -110,6 +179,8 @@ export default {
 
       const name = String(body.name || '').trim().slice(0, NAME_MAX_LEN).toUpperCase() || 'ANON';
       const score = Number(body.score);
+      const token = String(body.token || '');
+
       if (!Number.isInteger(score) || score < 0 || score > MAX_SCORE) {
         return json({ error: 'invalid score' }, 400);
       }
@@ -118,6 +189,24 @@ export default {
       }
       if (isAnonName(name)) {
         return json({ error: 'anonymous name' }, 400);
+      }
+
+      // Proof-of-session (see the file header comment for the threat this
+      // closes). Every failure path here returns the same generic
+      // 'invalid score' error as a plain bad score would, so nothing
+      // about *why* a submission was rejected leaks back to the caller.
+      if (!token) {
+        return json({ error: 'invalid score' }, 400);
+      }
+      const sessionKey = 'session:' + token;
+      const issuedAtRaw = await env.LEADERBOARD.get(sessionKey);
+      if (!issuedAtRaw) {
+        return json({ error: 'invalid score' }, 400);
+      }
+      await env.LEADERBOARD.delete(sessionKey); // single-use - no replay
+      const elapsedMs = Date.now() - Number(issuedAtRaw);
+      if (!scoreIsPlausible(score, elapsedMs)) {
+        return json({ error: 'invalid score' }, 400);
       }
 
       const list = await getLeaderboard(env);

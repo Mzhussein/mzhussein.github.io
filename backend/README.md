@@ -57,12 +57,24 @@ played yet).
 `mzhussein.github.io` and the preview link start using the real shared
 leaderboard.
 
+## Anti-cheat
+
+A forged score (a name and a huge number, POSTed straight to the API
+with no game ever played) got onto the live leaderboard once. Fixed by
+requiring a single-use session token, issued by `POST /session` when a
+game actually starts, and checking the submitted score against how much
+real time has passed since that token was issued (see the comment block
+at the top of `worker.js` for the full reasoning). This isn't - and for
+a client-authoritative game like this, can't be - a perfect defense
+against someone willing to script the whole timing dance; it closes the
+"one API call, no gameplay" version of the exploit, which is what
+actually happened.
+
 ## Notes
 
 - This is intentionally simple: no login, no accounts - anyone playing
-  just types a name, like an arcade cabinet. It's not meant to stop a
-  determined stranger from posting a joke score; there's no sensitive
-  data here, just a fun family high-score list.
+  just types a name, like an arcade cabinet. There's no sensitive data
+  here, just a fun family high-score list.
 - Cost: Cloudflare's free plan covers this completely (Workers and KV
   both have generous free tiers, and a family leaderboard is nowhere
   near those limits).

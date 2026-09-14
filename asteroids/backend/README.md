@@ -63,11 +63,24 @@ real yet) - that's expected, not a bug. The game itself still deploys
 and is fully playable in the meantime; it just falls back to a
 per-browser local high-score list until the shared backend is live.
 
+## Anti-cheat
+
+A forged score (a name and a huge number, POSTed straight to the API
+with no game ever played) got onto this leaderboard once - same trick
+also used against the Tetris one. Fixed by requiring a single-use
+session token, issued by `POST /session` when a game actually starts,
+and checking the submitted score against how much real time has passed
+since that token was issued (see the comment block at the top of
+`worker.js` for the full reasoning). This isn't - and for a
+client-authoritative game like this, can't be - a perfect defense
+against someone willing to script the whole timing dance; it closes
+the "one API call, no gameplay" version of the exploit, which is what
+actually happened.
+
 ## Notes
 
 - Same as Tetris: no login, no accounts - type a name, like an arcade
-  cabinet. Not meant to stop a determined stranger from posting a joke
-  score.
+  cabinet.
 - Cost: covered entirely by Cloudflare's free tier.
 - To reset the leaderboard, delete and recreate the `top_scores` key in
   the KV namespace via the dashboard's KV viewer.

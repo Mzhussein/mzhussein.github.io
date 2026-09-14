@@ -609,6 +609,26 @@
   const LEADERBOARD_MAX = 10;
   const LEADERBOARD_SHOW = 5;
 
+  // Anti-cheat: the worker only accepts a score if it comes with a
+  // single-use token proving a real session actually started some
+  // plausible amount of time earlier (see backend/worker.js). Requested
+  // once per game, right when play begins, so the elapsed-time window is
+  // as generous as possible. If this fails (offline, worker down) the
+  // submission will too - addToLeaderboard already falls back to a local
+  // list in that case, same as if the worker were unreachable for any
+  // other reason.
+  let sessionToken = null;
+  async function requestSessionToken(){
+    sessionToken = null;
+    try {
+      const res = await fetch(LEADERBOARD_API.replace(/\/leaderboard$/, '/session'), { method: 'POST' });
+      if (res.ok){
+        const body = await res.json();
+        if (body && typeof body.token === 'string') sessionToken = body.token;
+      }
+    } catch (e) { /* worker unreachable - submission will fall back to local storage */ }
+  }
+
   const BANNED_SUBSTRINGS = [
     'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
     'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
@@ -671,7 +691,7 @@
       const res = await fetch(LEADERBOARD_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name || 'ANON', score: s }),
+        body: JSON.stringify({ name: name || 'ANON', score: s, token: sessionToken }),
       });
       if (res.status === 400){
         const body = await res.json().catch(() => ({}));
@@ -845,6 +865,7 @@
     ensureAudio();
     draw();
     restartTickTimer();
+    requestSessionToken();
   }
 
   function togglePause(){
