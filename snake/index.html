@@ -283,7 +283,7 @@
       flex-direction:column;
     }
     .side{
-      width:auto;
+      width:100%;
       flex:0 0 auto;
       flex-direction:row;
       justify-content:center;
@@ -408,16 +408,21 @@
   "use strict";
 
   // ---------- constants ----------
-  // Two grid shapes, picked at runtime by whichever the available board
-  // space actually is (see pickGridForViewport) - the original hardware
-  // only ever had one aspect ratio (84x48, ~1.75:1, matched by LANDSCAPE
-  // below), but a phone held upright is portrait-shaped, and forcing that
-  // wide a grid into it leaves a lot of the screen empty above/below the
-  // board. PORTRAIT keeps the same "chunky LCD" feel, just reflowed to
-  // actually fill a tall narrow screen instead of letterboxing inside it.
-  const GRID_LANDSCAPE = { cols: 28, rows: 16 }; // ~ Nokia 3310's 84x48 LCD ratio
-  const GRID_PORTRAIT  = { cols: 16, rows: 24 };
-  let GRID_COLS = GRID_LANDSCAPE.cols, GRID_ROWS = GRID_LANDSCAPE.rows;
+  // The grid shape is derived at runtime from whatever aspect ratio the
+  // available board space actually has (see pickGridForViewport). The
+  // original hardware only ever had one ratio (84x48, ~1.75:1), but a
+  // phone held upright is portrait-shaped - two fixed presets (one
+  // landscape, one portrait) were tried first and still left a visible
+  // strip of empty board-wrap down each side on most phones, because a
+  // single fixed portrait ratio can't match every device's actual
+  // available box. Deriving cols/rows directly from the box's own
+  // width:height ratio (keeping the total cell count close to the
+  // original 28x16=448) makes the canvas fill essentially all of the
+  // space it's given, on any screen, while keeping the same "chunky LCD"
+  // cell density.
+  const GRID_CELL_BUDGET = 448; // ~ Nokia 3310's 28x16 landscape cell count
+  const GRID_MIN = 12, GRID_MAX = 34;
+  let GRID_COLS = 28, GRID_ROWS = 16;
   const TICK_START = 150;   // ms per move, at game start
   const TICK_MIN = 70;      // ms per move, fastest the game gets
   const TICK_STEP = 8;      // ms faster per speed-up
@@ -439,12 +444,17 @@
   // snake/food layout never gets invalidated by a resize.
   function pickGridForViewport(){
     const rect = boardWrapEl.getBoundingClientRect();
-    const wantPortrait = rect.height > rect.width;
-    const wanted = wantPortrait ? GRID_PORTRAIT : GRID_LANDSCAPE;
-    if (wanted.cols === GRID_COLS && wanted.rows === GRID_ROWS) return;
+    const availW = Math.max(80, rect.width);
+    const availH = Math.max(60, rect.height);
+    const boxAspect = availW / availH;
+    let cols = Math.round(Math.sqrt(GRID_CELL_BUDGET * boxAspect));
+    cols = Math.max(GRID_MIN, Math.min(GRID_MAX, cols));
+    let rows = Math.round(cols / boxAspect);
+    rows = Math.max(GRID_MIN, Math.min(GRID_MAX, rows));
+    if (cols === GRID_COLS && rows === GRID_ROWS) return;
     if (state === 'playing') return;
-    GRID_COLS = wanted.cols;
-    GRID_ROWS = wanted.rows;
+    GRID_COLS = cols;
+    GRID_ROWS = rows;
     resetGame();
   }
 
