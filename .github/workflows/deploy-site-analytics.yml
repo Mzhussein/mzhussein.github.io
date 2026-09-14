@@ -1,0 +1,22 @@
+name: Deploy Site Analytics Worker to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'analytics/backend/**'
+      - '.github/workflows/deploy-site-analytics.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: analytics/backend
+          command: deploy

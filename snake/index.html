@@ -407,6 +407,61 @@
 (function(){
   "use strict";
 
+  // ---------- analytics ----------
+  // Fire-and-forget visit tracking, shared across all three games (see
+  // analytics/backend). Deliberately isolated from everything else on
+  // this page: it can never throw into game code, never blocks
+  // rendering/input, and if the analytics Worker is unreachable this
+  // just silently does nothing - same "never break the game" posture as
+  // the leaderboard fallback below.
+  (function () {
+    try {
+      var ANALYTICS_API = 'https://site-analytics.mzhussein42.workers.dev/track';
+      var COOKIE_NAME = 'visitor_id';
+
+      function readCookie(name) {
+        var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      function newId() {
+        return (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+      }
+
+      var isNewVisitor = false;
+      var visitorId = readCookie(COOKIE_NAME);
+      if (!visitorId) {
+        visitorId = newId();
+        isNewVisitor = true;
+        // 1 year, first-party (this game's own domain only)
+        document.cookie = COOKIE_NAME + '=' + encodeURIComponent(visitorId) + '; max-age=31536000; path=/; samesite=lax';
+      }
+
+      var sessionId = sessionStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = newId();
+        sessionStorage.setItem('session_id', sessionId);
+      }
+
+      var payload = JSON.stringify({
+        game: 'snake',
+        visitor_id: visitorId,
+        session_id: sessionId,
+        is_new_visitor: isNewVisitor,
+        path: location.pathname,
+        referrer: document.referrer || '',
+        screen_w: window.screen ? window.screen.width : null,
+        screen_h: window.screen ? window.screen.height : null,
+        lang: navigator.language || '',
+      });
+
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(ANALYTICS_API, new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch(ANALYTICS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function () {});
+      }
+    } catch (e) { /* analytics must never break the game */ }
+  })();
+
   // ---------- constants ----------
   // The grid shape is derived at runtime from whatever aspect ratio the
   // available board space actually has (see pickGridForViewport). The
