@@ -59,8 +59,10 @@ leaderboard.
 
 ## Anti-cheat
 
-A forged score (a name and a huge number, POSTed straight to the API
-with no game ever played) got onto the live leaderboard once. Fixed by
+Forged scores (a name and a large number, POSTed straight to the API
+with no game ever played) got onto the live leaderboard twice under the
+same name - an obvious one (99999999) and a more careful one (100402,
+sized to look like a very good but believable score). Fixed by
 requiring a single-use session token, issued by `POST /session` when a
 game actually starts, and checking the submitted score against how much
 real time has passed since that token was issued (see the comment block
@@ -68,7 +70,14 @@ at the top of `worker.js` for the full reasoning). This isn't - and for
 a client-authoritative game like this, can't be - a perfect defense
 against someone willing to script the whole timing dance; it closes the
 "one API call, no gameplay" version of the exploit, which is what
-actually happened.
+actually happened both times.
+
+The plausibility numbers (`MAX_SCORE`, `MAX_SCORE_PER_SECOND`) are
+grounded in this build's actual scoring/gravity math plus a real,
+verified playtest (28280 points in ~8 minutes, topping out around level
+8 - see `worker.js`), not generic "NES Tetris" folklore - the original,
+looser numbers were exactly why the 100402 forgery went unnoticed at
+first.
 
 ## Notes
 
