@@ -5,4 +5,4 @@ compatibility_date = "2024-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "site_analytics"
-database_id = "REPLACE_WITH_REAL_D1_DATABASE_ID"
+database_id = "5c2a02f8-4419-446e-b9ee-853f308459e0"
