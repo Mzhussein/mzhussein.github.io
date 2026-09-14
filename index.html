@@ -208,6 +208,14 @@
     margin-top:14px;
     flex-wrap:wrap;
     justify-content:center;
+    /* .toolbar is now a grid/flex child of .layout (moved there so the
+       mobile media query below can place it directly under the NEXT
+       panel via grid-area) rather than the page-level block it used to
+       be. On desktop .layout is a flex row (side-stats/board/side-next);
+       flex-basis:100% claims a whole line for itself, which - combined
+       with flex-wrap on .layout - forces it onto its own row below
+       everything else, same as its old position as a separate element. */
+    flex-basis:100%;
   }
   /* Touch controls: a period-appropriate d-pad (left) + A/B buttons
      (right), like a game pad, rather than a row of plain arrow buttons. */
@@ -310,26 +318,30 @@
        mobile that's better spent on bigger, easier-to-hit controls. */
     h1{ display:none; }
     .subtitle{ display:none; }
-    /* A narrow info sidebar (both .side blocks stacked, however far apart
-       they sit in the DOM) on the left, board takes every remaining pixel
-       of width AND height - maximizes the play area further than a top
-       info row did, since the sidebar's width is much less than a full
-       row's height would have cost. grid-template-areas lets the two
-       .side blocks stack in column 1 regardless of DOM order (board sits
-       between them in the DOM); board spans both rows in column 2, so it
-       gets the auto row's leftover height (via the minmax(0,1fr) row)
-       plus the auto row's own height added back in - i.e. the full
-       height - not just the 1fr row's share. */
+    /* A narrow info sidebar (both .side blocks plus the toolbar, stacked
+       however far apart they sit in the DOM) on the left, board takes
+       every remaining pixel of width AND height - maximizes the play
+       area further than a top info row did, since the sidebar's width is
+       much less than a full row's height would have cost.
+       grid-template-areas lets those column-1 blocks stack in that
+       column regardless of DOM order (board sits between them in the
+       DOM); board spans all three rows in column 2, so it gets the
+       leftover height of the final minmax(0,1fr) row plus the two auto
+       rows' own height added back in - i.e. the full height, not just
+       the 1fr row's share. Putting the toolbar (mute/pause/exit) last in
+       that stack, directly under NEXT, uses space that used to just sit
+       empty below the NEXT panel. */
     .layout{
       flex:1 1 auto;
       min-height:0;
       width:100%;
       display:grid;
       grid-template-columns:auto minmax(0,1fr);
-      grid-template-rows:auto minmax(0,1fr);
+      grid-template-rows:auto auto minmax(0,1fr);
       grid-template-areas:
-        "stats board"
-        "next  board";
+        "stats   board"
+        "next    board"
+        "toolbar board";
       gap:2px;
     }
     .side-stats{ grid-area:stats; align-self:start; }
@@ -372,8 +384,15 @@
       max-width:90vw;
       max-height:100%;
     }
-    .toolbar{ flex:0 0 auto; margin-top:0; gap:6px; }
-    .toolbar button{ padding:2px 9px; font-size:0.6rem; }
+    .toolbar{
+      grid-area:toolbar;
+      align-self:start;
+      flex-basis:auto; /* cancel the desktop flex-basis:100% - .layout is a grid here, not flex */
+      flex-direction:column;
+      margin-top:4px;
+      gap:4px;
+    }
+    .toolbar button{ width:56px; padding:4px 2px; font-size:0.5rem; white-space:normal; line-height:1.2; }
     .touch-controls{
       display:block;
       flex:0 0 auto;
@@ -468,12 +487,12 @@
     </div>
   </div>
 
-</div>
+  <div class="toolbar">
+    <button id="muteBtn">MUTE MUSIC</button>
+    <button id="pauseBtn">PAUSE</button>
+    <button id="exitBtn" hidden>EXIT</button>
+  </div>
 
-<div class="toolbar">
-  <button id="muteBtn">MUTE MUSIC</button>
-  <button id="pauseBtn">PAUSE</button>
-  <button id="exitBtn" hidden>EXIT</button>
 </div>
 
 <div class="touch-controls">
