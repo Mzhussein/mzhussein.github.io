@@ -6,4 +6,4 @@ compatibility_date = "2024-11-01"
 # create` (see README.md in this folder for how it was created).
 [[kv_namespaces]]
 binding = "LEADERBOARD"
-id = "REPLACE_WITH_REAL_KV_NAMESPACE_ID"
+id = "185eff857a024c43a1dfb6ae4cd9d210"
