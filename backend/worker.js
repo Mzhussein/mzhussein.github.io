@@ -34,6 +34,14 @@
  * exact same generic error, on purpose, so a script probing this API
  * can't tell which check it tripped.
  *
+ * The tuning below (MAX_SCORE, SCORE_BASE_ALLOWANCE,
+ * MAX_SCORE_PER_SECOND) was originally a generic guess based on classic
+ * NES Tetris score folklore, not this build's actual scoring/gravity
+ * curve - which meant a second forged score (100402, on the same "4/10"
+ * name as the 99999999 one) looked "plausible" and sat on the
+ * leaderboard undetected. Recalibrated using this game's real math
+ * instead - see the comment above MAX_SCORE.
+ *
  * Bind a KV namespace named LEADERBOARD to this Worker (see README.md
  * in this folder for exact steps) before deploying.
  */
@@ -42,11 +50,27 @@ const MAX_ENTRIES = 10;
 const NAME_MAX_LEN = 12;
 
 // ---- anti-cheat tuning ----
-// MAX_SCORE: a hard ceiling regardless of anything else. 999999 is the
-// classic "six nines" NES Tetris max score convention - generous for any
-// real run, and also what retroactively purges the forged 99999999 entry
-// (see getLeaderboard's self-heal below).
-const MAX_SCORE = 999999;
+// This build's scoring: score += LINE_SCORES[cleared] * (level + 1),
+// LINE_SCORES = [0,40,100,300,1200], level = floor(lines / 10). A
+// flawless, zero-waste, ALL-TETRIS run (the best any player could ever
+// do - never realistic) through level 8 (90 lines) totals:
+//   sum over level 0..8 of 2.5 tetrises * 1200 * (level+1)
+//   = 3000 * (1+2+...+9) = 3000 * 45 = 135,000
+// A real, credible playtest (skilled human, topped out around level 8 -
+// this build's gravity makes going much further "not really possible"
+// even for a good player) scored 28,280 in ~8 minutes: ~21% of that
+// theoretical ceiling, and ~59 points/sec average - exactly what real,
+// imperfect play (mixing in singles/doubles/triples, not all Tetrises)
+// looks like. The 100402 entry that prompted this recalibration is
+// ~72% of the same theoretical ceiling - implausibly close to flawless
+// play under gravity fast enough that even good human players top out
+// well below it. MAX_SCORE and MAX_SCORE_PER_SECOND below are set with
+// real headroom above that 28,280/59-per-sec baseline (room for a
+// genuinely better player), while landing well under scores that would
+// require near-perfect Tetris-only play to reach - which also means
+// MAX_SCORE now retroactively purges both forged "4/10" entries via
+// getLeaderboard's self-heal, not just the obviously-fake one.
+const MAX_SCORE = 90000;
 // A session token (from POST /session) is valid for this long, then KV
 // expires it automatically. 30 minutes comfortably covers a long single
 // sitting without leaving old tokens farmable indefinitely.
@@ -54,10 +78,12 @@ const SESSION_TTL_SECONDS = 1800;
 // scoreIsPlausible below allows SCORE_BASE_ALLOWANCE points immediately
 // (covers an early lucky big clear before the rate window has accrued
 // much), plus MAX_SCORE_PER_SECOND for every second since the session
-// token was issued. Both are deliberately generous - tuned to never
-// reject genuine play, not to model exact optimal-play scoring.
-const SCORE_BASE_ALLOWANCE = 3000;
-const MAX_SCORE_PER_SECOND = 1500;
+// token was issued. ~2.5x the real 59 points/sec baseline above - real
+// headroom for a better player or a lucky run, without being anywhere
+// near generous enough to wave through another "plausible-looking"
+// forged score like 100402 was.
+const SCORE_BASE_ALLOWANCE = 1500;
+const MAX_SCORE_PER_SECOND = 150;
 
 function scoreIsPlausible(score, elapsedMs) {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return false;

@@ -63,16 +63,36 @@ function html(body, status) {
   return new Response(body, { status: status || 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
 
+// Force every single response this Worker returns - including whatever
+// env.ASSETS.fetch() hands back - to be uncacheable anywhere (edge, CDN,
+// browser). This exists because of a real incident: the Workers Static
+// Assets binding serves files with long-lived, effectively-immutable
+// Cache-Control by default, and Cloudflare's edge will keep serving an
+// already-cached response straight from cache on a hit - which happens
+// BEFORE this Worker (or run_worker_first) ever gets a chance to run,
+// gate or no gate. That's how an unauthenticated real photo kept coming
+// back 200 after the gate was fixed: the bad response was cached from
+// before the fix existed. Preventing caching here is what stops it from
+// ever building up again, regardless of what path-renaming or purging
+// happens around any specific incident.
+function noStore(response) {
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', 'private, no-store');
+  headers.delete('ETag');
+  headers.delete('Last-Modified');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (!env.GATE_PASSWORD) {
       // Fail closed, not open - see GATE.md for the one-time setup step.
-      return new Response(
+      return noStore(new Response(
         'This game is gated behind a passphrase, but GATE_PASSWORD isn\'t set yet on this Worker. See dodge-the-su/GATE.md.',
         { status: 503 }
-      );
+      ));
     }
 
     if (url.pathname === '/__gate_login' && request.method === 'POST') {
@@ -83,21 +103,22 @@ export default {
       } catch (e) { /* malformed body - falls through to the wrong-password response */ }
 
       if (password && password === env.GATE_PASSWORD) {
-        const headers = new Headers({ Location: '/' });
+        const headers = new Headers({ Location: '/', 'Cache-Control': 'private, no-store' });
         headers.append(
           'Set-Cookie',
           `${COOKIE_NAME}=${encodeURIComponent(password)}; Path=/; Max-Age=${COOKIE_MAX_AGE}; HttpOnly; Secure; SameSite=Lax`
         );
         return new Response(null, { status: 302, headers });
       }
-      return html(loginPage('Wrong passphrase.'), 401);
+      return noStore(html(loginPage('Wrong passphrase.'), 401));
     }
 
     const cookie = readCookie(request, COOKIE_NAME);
     if (cookie !== env.GATE_PASSWORD) {
-      return html(loginPage());
+      return noStore(html(loginPage()));
     }
 
-    return env.ASSETS.fetch(request);
+    const asset = await env.ASSETS.fetch(request);
+    return noStore(asset);
   },
 };
