@@ -31,6 +31,24 @@ Until this is set, the Worker fails **closed**: it returns a plain 503
 telling you the gate isn't configured yet, rather than serving the game
 unprotected.
 
+## Incident: the gate didn't actually run at first
+
+The first deploy of this Worker had `gate-worker.js` as `main` but was
+still missing `run_worker_first = true` in the `[assets]` block of
+`deploy/dodge-the-su-game/wrangler.toml`. Without that setting, Cloudflare
+serves any request matching a file in the static bundle directly from its
+edge - which is everything here (`/` → `index.html`, every path under
+`assets/img/` and `assets/audio/`) - **without ever invoking
+gate-worker.js's fetch handler**. The password check itself was never
+wrong; it just never ran. This was caught live (an unauthenticated
+request to `assets/img/9_sprite_police.png` returned the real file, not
+a 401/503) before `GATE_PASSWORD` was even set, and the `workers.dev`
+subdomain was disabled immediately as containment while the fix
+(`run_worker_first = true`, now in wrangler.toml) deployed. Verify this
+class of bug directly, live, on any future change here - don't just trust
+that a Worker with an `[assets]` binding routes through your `fetch`
+handler by default. It doesn't.
+
 ## Changing or rotating the passphrase
 
 Repeat the steps above with a new value. Anyone with the old passphrase's
