@@ -13,6 +13,17 @@ compatibility_date = "2024-11-01"
 [assets]
 directory = "./public"
 binding = "ASSETS"
+# Without this, Cloudflare serves any request matching a file in the
+# static bundle straight from its edge - which is everything here ("/" ->
+# index.html, every path under assets/img and assets/audio) - WITHOUT
+# ever invoking gate-worker.js's fetch handler. That's not a bypass in
+# the password check itself; the check just never runs. run_worker_first
+# unconditionally routes every request through the Worker first, so the
+# gate actually sits in front of the whole site as intended. Confirmed
+# live: without this, an unauthenticated request to a real asset path
+# (e.g. assets/img/9_sprite_police.png) returned 200 with the actual
+# file, not gate-worker.js's 503/401.
+run_worker_first = true
 
 # Custom domain is attached to this Worker via the Cloudflare dashboard
 # (Workers & Pages -> dodge-the-su-game -> Settings -> Domains & Routes) -
