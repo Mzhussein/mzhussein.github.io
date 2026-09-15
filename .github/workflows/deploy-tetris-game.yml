@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - 'audio/**'
       - 'deploy/tetris-game/**'
       - '.github/workflows/deploy-tetris-game.yml'
   workflow_dispatch: {}
@@ -19,6 +20,12 @@ jobs:
         run: |
           mkdir -p deploy/tetris-game/public
           cp index.html deploy/tetris-game/public/index.html
+          # Optional user-supplied theme music (see AUDIO.md) - only staged
+          # if the repo actually has one, so this is a no-op by default.
+          if [ -d audio ]; then
+            mkdir -p deploy/tetris-game/public/audio
+            cp -r audio/. deploy/tetris-game/public/audio/
+          fi
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3

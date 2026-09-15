@@ -1,9 +1,11 @@
 /**
- * Tetris leaderboard API - Cloudflare Worker
+ * Snake leaderboard API - Cloudflare Worker
  *
  * A tiny shared backend so everyone who plays the game (any device,
  * any browser) sees and adds to the same top-10 list, instead of each
- * browser keeping its own local high scores.
+ * browser keeping its own local high scores. Same design as the Tetris
+ * and Asteroids leaderboard workers in this repo, just its own separate
+ * Worker/KV namespace/URL - completely independent of either.
  *
  * Storage: a single Workers KV namespace holding one JSON array under
  * the key "top_scores", plus short-lived session-token entries under
@@ -20,19 +22,22 @@
  *                          updated top 10 after inserting it
  *
  * Anti-cheat: this endpoint is public and can be POSTed to directly,
- * bypassing the page entirely - and was: a forged 99999999 score got in
- * this way, with no game ever played. There's no way to fully verify a
- * score from a client-authoritative game without replaying every move
- * server-side (out of scope here), but POST /leaderboard now requires a
- * single-use token from POST /session and rejects any score that isn't
- * plausible for how much real time has passed since that token was
- * issued (see scoreIsPlausible below). That closes the "one API call,
- * no gameplay" exploit; it doesn't stop someone willing to script the
- * actual timing dance, which is a fundamentally different, much higher
- * effort attack against this class of app. Every rejection - bad score,
- * missing/expired/reused token, not enough elapsed time - returns the
- * exact same generic error, on purpose, so a script probing this API
- * can't tell which check it tripped.
+ * bypassing the page entirely - and was, on this repo's Tetris and
+ * Asteroids leaderboards (same forged-99999999-score trick, same worker
+ * pattern). There's no way to fully verify a score from a client-
+ * authoritative game without replaying every move server-side (out of
+ * scope here), but POST /leaderboard now requires a single-use token
+ * from POST /session and rejects any score that isn't plausible for how
+ * much real time has passed since that token was issued (see
+ * scoreIsPlausible below). Snake's scoring is discrete - one apple is
+ * exactly FOOD_SCORE points and can't happen faster than once per
+ * TICK_MIN_MS, both mirrored from the game's own constants - so this
+ * isn't a fuzzy rate guess like the other two games, it's a hard
+ * physical ceiling: no real client can ever produce a higher score than
+ * elapsed-time-in-ticks allows. Every rejection - bad score, missing/
+ * expired/reused token, not enough elapsed time - returns the exact
+ * same generic error, on purpose, so a script probing this API can't
+ * tell which check it tripped.
  *
  * Bind a KV namespace named LEADERBOARD to this Worker (see README.md
  * in this folder for exact steps) before deploying.
@@ -42,26 +47,29 @@ const MAX_ENTRIES = 10;
 const NAME_MAX_LEN = 12;
 
 // ---- anti-cheat tuning ----
-// MAX_SCORE: a hard ceiling regardless of anything else. 999999 is the
-// classic "six nines" NES Tetris max score convention - generous for any
-// real run, and also what retroactively purges the forged 99999999 entry
-// (see getLeaderboard's self-heal below).
-const MAX_SCORE = 999999;
+// MAX_SCORE: a hard ceiling regardless of anything else - a belt-and-
+// suspenders backstop behind scoreIsPlausible below, which is normally
+// the tighter check. 50000 (5000 apples) is already a wildly long game.
+const MAX_SCORE = 50000;
 // A session token (from POST /session) is valid for this long, then KV
 // expires it automatically. 30 minutes comfortably covers a long single
 // sitting without leaving old tokens farmable indefinitely.
 const SESSION_TTL_SECONDS = 1800;
-// scoreIsPlausible below allows SCORE_BASE_ALLOWANCE points immediately
-// (covers an early lucky big clear before the rate window has accrued
-// much), plus MAX_SCORE_PER_SECOND for every second since the session
-// token was issued. Both are deliberately generous - tuned to never
-// reject genuine play, not to model exact optimal-play scoring.
-const SCORE_BASE_ALLOWANCE = 3000;
-const MAX_SCORE_PER_SECOND = 1500;
+// Mirrors the game's own tick timing (snake/index.html: FOOD_SCORE,
+// TICK_MIN) - keep these two in sync. Eating an apple takes at least one
+// tick, and no tick is ever shorter than TICK_MIN_MS, so the number of
+// apples eaten can never exceed elapsedMs / TICK_MIN_MS - this is exact,
+// not a generous approximation like the other two games' rate caps
+// (using the *fastest* tick the whole time is already maximally
+// generous to the submitter, since real play starts slower and only
+// reaches TICK_MIN after several apples).
+const FOOD_SCORE = 10;
+const TICK_MIN_MS = 100;
 
 function scoreIsPlausible(score, elapsedMs) {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return false;
-  return score <= SCORE_BASE_ALLOWANCE + (elapsedMs / 1000) * MAX_SCORE_PER_SECOND;
+  const maxApples = Math.floor(elapsedMs / TICK_MIN_MS);
+  return score <= maxApples * FOOD_SCORE;
 }
 
 // Basic profanity guard for the shared, public leaderboard. Not trying to be
@@ -123,10 +131,9 @@ async function getLeaderboard(env) {
     arr = [];
   }
   // Self-healing: silently drop anything that wouldn't pass validation
-  // today - forged scores from before this ceiling existed (like the
-  // 99999999 entry that prompted this), or this project's own leftover
-  // "TEST" entries. Runs on every read, so the very next request cleans
-  // the stored list up if it ever needs it.
+  // today - forged scores from before this ceiling existed, or this
+  // project's own leftover "TEST" entries. Runs on every read, so the
+  // very next request cleans the stored list up if it ever needs it.
   const cleaned = arr.filter((e) =>
     e && typeof e.name === 'string' && e.name !== 'TEST' &&
     Number.isInteger(e.score) && e.score >= 0 && e.score <= MAX_SCORE

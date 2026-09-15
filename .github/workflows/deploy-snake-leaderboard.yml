@@ -1,0 +1,22 @@
+name: Deploy Snake Leaderboard Worker to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'snake/backend/**'
+      - '.github/workflows/deploy-snake-leaderboard.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: snake/backend
+          command: deploy

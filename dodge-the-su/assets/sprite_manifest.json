@@ -1,0 +1,260 @@
+{
+ "sprite_controller": {
+  "id": 1,
+  "file": "img/1_sprite_controller.png",
+  "frameW": 32,
+  "frameH": 32,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_car_down": {
+  "id": 3,
+  "file": "img/3_sprite_car_down.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_racing": {
+  "id": 4,
+  "file": "img/4_sprite_racing.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_gas": {
+  "id": 5,
+  "file": "img/5_sprite_gas.png",
+  "frameW": 55,
+  "frameH": 60,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_racing_dead": {
+  "id": 6,
+  "file": "img/6_sprite_racing_dead.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 111,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_car_down_dead": {
+  "id": 7,
+  "file": "img/7_sprite_car_down_dead.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 98,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_police": {
+  "id": 9,
+  "file": "img/9_sprite_police.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_police_dead": {
+  "id": 10,
+  "file": "img/10_sprite_police_dead.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "car_right": {
+  "id": 14,
+  "file": "img/14_car_right.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "tyre_marks": {
+  "id": 15,
+  "file": "img/15_tyre_marks.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "car_forwards": {
+  "id": 17,
+  "file": "img/17_car_forwards.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "car_left": {
+  "id": 18,
+  "file": "img/18_car_left.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "car_back": {
+  "id": 19,
+  "file": "img/19_car_back.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "bullet": {
+  "id": 22,
+  "file": "img/22_bullet.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "uzi": {
+  "id": 23,
+  "file": "img/23_uzi.png",
+  "frameW": 65,
+  "frameH": 144,
+  "frames": 2,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "shell": {
+  "id": 31,
+  "file": "img/31_shell.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 11,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "tyre_marks_2": {
+  "id": 33,
+  "file": "img/33_tyre_marks_2.png",
+  "frameW": 58,
+  "frameH": 128,
+  "frames": 4,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_car_up": {
+  "id": 35,
+  "file": "img/35_sprite_car_up.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "car_down_dead_final": {
+  "id": 36,
+  "file": "img/36_car_down_dead_final.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "nothing": {
+  "id": 37,
+  "file": "img/37_nothing.png",
+  "frameW": 32,
+  "frameH": 32,
+  "frames": 10,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite_car_up_dead": {
+  "id": 38,
+  "file": "img/38_sprite_car_up_dead.png",
+  "frameW": 40,
+  "frameH": 55,
+  "frames": 98,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "sprite39": {
+  "id": 39,
+  "file": "img/39_sprite39.png",
+  "frameW": 261,
+  "frameH": 255,
+  "frames": 1,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "10": {
+  "id": 41,
+  "file": "img/41_10.png",
+  "frameW": 50,
+  "frameH": 50,
+  "frames": 41,
+  "origin": [
+   0,
+   0
+  ]
+ },
+ "__bg_background0": {
+  "file": "img/background0.png",
+  "w": 640,
+  "h": 347
+ }
+}

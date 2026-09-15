@@ -1,9 +1,11 @@
 /**
- * Tetris leaderboard API - Cloudflare Worker
+ * Asteroids leaderboard API - Cloudflare Worker
  *
  * A tiny shared backend so everyone who plays the game (any device,
  * any browser) sees and adds to the same top-10 list, instead of each
- * browser keeping its own local high scores.
+ * browser keeping its own local high scores. Same design as the Tetris
+ * leaderboard worker, just its own separate Worker/KV namespace/URL -
+ * completely independent of the Tetris deployment.
  *
  * Storage: a single Workers KV namespace holding one JSON array under
  * the key "top_scores", plus short-lived session-token entries under
@@ -21,18 +23,19 @@
  *
  * Anti-cheat: this endpoint is public and can be POSTed to directly,
  * bypassing the page entirely - and was: a forged 99999999 score got in
- * this way, with no game ever played. There's no way to fully verify a
- * score from a client-authoritative game without replaying every move
- * server-side (out of scope here), but POST /leaderboard now requires a
- * single-use token from POST /session and rejects any score that isn't
- * plausible for how much real time has passed since that token was
- * issued (see scoreIsPlausible below). That closes the "one API call,
- * no gameplay" exploit; it doesn't stop someone willing to script the
- * actual timing dance, which is a fundamentally different, much higher
- * effort attack against this class of app. Every rejection - bad score,
- * missing/expired/reused token, not enough elapsed time - returns the
- * exact same generic error, on purpose, so a script probing this API
- * can't tell which check it tripped.
+ * this way (same trick, same worker pattern, hit on Tetris too), with no
+ * game ever played. There's no way to fully verify a score from a
+ * client-authoritative game without replaying every move server-side
+ * (out of scope here), but POST /leaderboard now requires a single-use
+ * token from POST /session and rejects any score that isn't plausible
+ * for how much real time has passed since that token was issued (see
+ * scoreIsPlausible below). That closes the "one API call, no gameplay"
+ * exploit; it doesn't stop someone willing to script the actual timing
+ * dance, which is a fundamentally different, much higher effort attack
+ * against this class of app. Every rejection - bad score, missing/
+ * expired/reused token, not enough elapsed time - returns the exact
+ * same generic error, on purpose, so a script probing this API can't
+ * tell which check it tripped.
  *
  * Bind a KV namespace named LEADERBOARD to this Worker (see README.md
  * in this folder for exact steps) before deploying.
@@ -42,22 +45,23 @@ const MAX_ENTRIES = 10;
 const NAME_MAX_LEN = 12;
 
 // ---- anti-cheat tuning ----
-// MAX_SCORE: a hard ceiling regardless of anything else. 999999 is the
-// classic "six nines" NES Tetris max score convention - generous for any
-// real run, and also what retroactively purges the forged 99999999 entry
-// (see getLeaderboard's self-heal below).
-const MAX_SCORE = 999999;
+// MAX_SCORE: a hard ceiling regardless of anything else. 500000 is far
+// above any realistic long-session score (the small saucer, the single
+// biggest scoring event, is worth 1000; the real top score on this board
+// as of writing is a few thousand) but nowhere near the old 100000000,
+// which is what let a forged score straight through.
+const MAX_SCORE = 500000;
 // A session token (from POST /session) is valid for this long, then KV
 // expires it automatically. 30 minutes comfortably covers a long single
 // sitting without leaving old tokens farmable indefinitely.
 const SESSION_TTL_SECONDS = 1800;
 // scoreIsPlausible below allows SCORE_BASE_ALLOWANCE points immediately
-// (covers an early lucky big clear before the rate window has accrued
-// much), plus MAX_SCORE_PER_SECOND for every second since the session
-// token was issued. Both are deliberately generous - tuned to never
-// reject genuine play, not to model exact optimal-play scoring.
-const SCORE_BASE_ALLOWANCE = 3000;
-const MAX_SCORE_PER_SECOND = 1500;
+// (covers an early lucky big kill/streak before the rate window has
+// accrued much), plus MAX_SCORE_PER_SECOND for every second since the
+// session token was issued. Both are deliberately generous - tuned to
+// never reject genuine play, not to model exact optimal-play scoring.
+const SCORE_BASE_ALLOWANCE = 2000;
+const MAX_SCORE_PER_SECOND = 2500;
 
 function scoreIsPlausible(score, elapsedMs) {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return false;

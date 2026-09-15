@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dodge The Su</title>
+<style>
+  :root{
+    --bg:#0c0b0a;
+    --panel:#161311;
+    --border:#3a322a;
+    --text:#f0ece4;
+    --accent:#ffb020;
+    --accent2:#ff4d4d;
+    --muted:#8a8078;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Courier New', 'Consolas', monospace;
+    min-height:100%;
+  }
+  body{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px 12px 40px;
+  }
+  h1{
+    letter-spacing:0.25em;
+    font-size:1.9rem;
+    margin:0 0 4px;
+    color:var(--accent);
+    text-shadow:0 0 8px rgba(255,176,32,0.35);
+  }
+  .subtitle{
+    color:var(--muted);
+    font-size:0.75rem;
+    margin-bottom:18px;
+    text-align:center;
+    max-width:520px;
+  }
+  .layout{
+    display:flex;
+    gap:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .board-wrap{
+    position:relative;
+    line-height:0;
+    touch-action:none;
+    width:min(82vw, 1000px);
+    height:min(75vh, 700px);
+    max-width:100%;
+  }
+  canvas#board{
+    display:block;
+    width:100%;
+    height:100%;
+    border:3px solid var(--border);
+    background:#1c1a17;
+  }
+  .overlay{
+    position:absolute;
+    inset:0;
+    line-height:1.4;
+    background:rgba(10,8,6,0.9);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:10px;
+    padding:16px;
+    overflow-y:auto;
+    box-sizing:border-box;
+  }
+  .overlay[hidden]{display:none;}
+  .overlay h2{
+    margin:0;
+    color:var(--accent);
+    letter-spacing:0.15em;
+  }
+  .overlay p{
+    margin:0;
+    color:var(--text);
+    font-size:0.85rem;
+    line-height:1.5;
+  }
+  .overlay .score-line{color:var(--muted); font-size:0.8rem;}
+  .overlay .blurb{font-size:0.68rem; color:var(--muted); line-height:1.5;}
+  .overlay .prompt{color:var(--accent); font-size:0.8rem; letter-spacing:0.05em;}
+  .overlay .name-error{color:var(--accent2); font-size:0.68rem;}
+  .overlay .logo-img{max-width:70%; image-rendering:pixelated;}
+  .leaderboard{ width:100%; max-width:220px; }
+  .leaderboard h3{
+    margin:0 0 6px;
+    font-size:0.65rem;
+    letter-spacing:0.15em;
+    color:var(--muted);
+    font-weight:normal;
+  }
+  .leaderboard ol{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .leaderboard li{
+    display:flex;
+    gap:8px;
+    font-size:0.72rem;
+    color:var(--text);
+    padding:2px 4px;
+  }
+  .leaderboard li.lb-empty{color:var(--muted); justify-content:center; font-size:0.68rem;}
+  .leaderboard li.lb-highlight{background:rgba(255,176,32,0.14); color:var(--accent);}
+  .leaderboard .lb-rank{color:var(--muted); width:1.4em; text-align:right; flex:0 0 auto;}
+  .leaderboard .lb-name{flex:1 1 auto; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .leaderboard .lb-score{flex:0 0 auto; font-variant-numeric:tabular-nums;}
+  #nameEntry{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  #nameEntry[hidden]{display:none;}
+  #nameInput{
+    font-family:inherit;
+    background:#000;
+    color:var(--accent);
+    border:2px solid var(--border);
+    padding:7px 10px;
+    font-size:0.85rem;
+    letter-spacing:0.1em;
+    text-align:center;
+    text-transform:uppercase;
+    width:160px;
+    max-width:70vw;
+  }
+  #nameInput:focus{outline:none; border-color:var(--accent);}
+  button{
+    font-family:inherit;
+    background:var(--panel);
+    color:var(--text);
+    border:2px solid var(--border);
+    padding:8px 16px;
+    cursor:pointer;
+    font-size:0.85rem;
+    letter-spacing:0.05em;
+  }
+  button:hover{border-color:var(--accent); color:var(--accent);}
+  .side{ display:flex; flex-direction:column; gap:14px; width:150px; }
+  .panel{ background:var(--panel); border:2px solid var(--border); padding:10px 12px; }
+  .panel h3{ margin:0 0 8px; font-size:0.7rem; letter-spacing:0.15em; color:var(--muted); font-weight:normal; }
+  .panel .value{ font-size:1.3rem; color:var(--accent); }
+  .panel .lives-icons{ display:flex; gap:4px; font-size:1rem; }
+  .fuel-bar-outer{
+    width:100%; height:14px; border:2px solid var(--border); background:#000; margin-top:2px;
+  }
+  .fuel-bar-inner{ height:100%; width:100%; background:#2ecc40; transition:width 0.15s linear, background 0.15s linear; }
+  @keyframes level-up-pulse{
+    0%, 100%{ box-shadow:none; border-color:var(--border); }
+    30%{ box-shadow:0 0 14px 2px rgba(255,176,32,0.7); border-color:var(--accent); }
+  }
+  .panel.flash{ animation:level-up-pulse 0.9s ease-out; }
+  @media (prefers-reduced-motion: reduce){ .panel.flash{ animation:none; border-color:var(--accent); } }
+  .controls-list{ font-size:0.7rem; color:var(--muted); line-height:1.7; }
+  .controls-list b{color:var(--text);}
+  .toolbar{ display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; justify-content:center; }
+
+  /* ---------- settings / "master console" modal ---------- */
+  #settingsBackdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.75);
+    display:flex; align-items:center; justify-content:center; z-index:50;
+    padding:16px;
+  }
+  #settingsBackdrop[hidden]{display:none;}
+  #settingsPanel{
+    background:var(--panel); border:2px solid var(--accent); padding:18px 20px;
+    width:min(440px, 100%); max-height:88vh; overflow-y:auto;
+  }
+  #settingsPanel h2{ margin:0 0 4px; color:var(--accent); font-size:1rem; letter-spacing:0.1em; }
+  #settingsPanel .sub{ color:var(--muted); font-size:0.68rem; margin-bottom:14px; line-height:1.5; }
+  .settings-row{ margin-bottom:16px; }
+  .settings-row label{ display:block; font-size:0.7rem; color:var(--text); margin-bottom:6px; letter-spacing:0.05em; }
+  .settings-row input[type=file]{ font-size:0.7rem; color:var(--muted); width:100%; }
+  .settings-row input[type=range]{ width:100%; }
+  .settings-status{ font-size:0.65rem; color:var(--muted); margin-top:6px; min-height:1.2em; }
+  .settings-status.ok{ color:#2ecc40; }
+  .settings-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px; flex-wrap:wrap; }
+  .settings-actions button.secondary{ border-color:var(--border); color:var(--muted); }
+  #settingsGearBtn{
+    position:fixed; top:10px; right:10px; z-index:10;
+    width:40px; height:40px; border-radius:50%; padding:0; font-size:1.1rem;
+  }
+
+  /* ---------- touch controls ---------- */
+  .touch-controls{ display:none; margin-top:16px; width:340px; max-width:94vw; }
+  .pad-row{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .dpad{ display:grid; grid-template-columns:repeat(3, 52px); grid-template-rows:repeat(3, 52px); gap:4px; }
+  .arc-btn{
+    display:flex; align-items:center; justify-content:center; margin:0; padding:0;
+    background:linear-gradient(180deg, #2a221a, #14100c);
+    border:2px solid var(--border); color:var(--text); font-weight:bold;
+    user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent;
+    border-radius:8px; font-size:1.2rem;
+  }
+  .arc-btn:active{ background:linear-gradient(180deg, #14100c, #2a221a); border-color:var(--accent); color:var(--accent); }
+  .dpad .empty{ visibility:hidden; }
+  .fire-pad{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .fire-btn{ width:84px; height:84px; border-radius:50%; font-size:0.7rem; }
+  .quick-stats{
+    display:flex; flex-direction:column; align-items:center; justify-content:center; align-self:center;
+    gap:3px; background:var(--panel); border:2px solid var(--border); padding:6px 10px;
+  }
+  .qs-score{ color:var(--accent); font-weight:bold; font-variant-numeric:tabular-nums; }
+  .qs-row{ display:flex; align-items:center; gap:6px; color:var(--muted); }
+  footer{ margin-top:26px; color:var(--muted); font-size:0.65rem; text-align:center; max-width:520px; line-height:1.6; }
+
+  @media (max-width: 760px), (max-height: 750px){
+    html, body{ height:100%; }
+    body{ height:100vh; height:100dvh; overflow:hidden; padding:2px 10px calc(2px + env(safe-area-inset-bottom, 0px)); justify-content:flex-start; }
+    h1{ display:none; } .subtitle{ display:none; }
+    .layout{ flex:1 1 auto; min-height:0; width:100%; display:flex; }
+    .side{ display:none; }
+    .overlay{ gap:6px; padding:8px; } .overlay .blurb{ font-size:0.6rem; }
+    .leaderboard h3{ font-size:0.55rem; } .leaderboard li{ font-size:0.62rem; }
+    #nameInput{ font-size:0.75rem; padding:5px 8px; width:130px; }
+    .board-wrap{ flex:1 1 auto; height:100%; min-height:0; min-width:0; width:100%; display:flex; align-items:center; justify-content:center; }
+    canvas#board{ width:100%; height:100%; max-width:100%; max-height:100%; }
+    .toolbar{ flex:0 0 auto; margin-top:0; gap:6px; }
+    .toolbar button{ padding:2px 9px; font-size:0.6rem; }
+    .touch-controls{ display:block; flex:0 0 auto; margin-top:1px; width:min(340px, 98vw); }
+    .dpad{ grid-template-columns:repeat(3, 44px); grid-template-rows:repeat(3, 44px); }
+    .fire-btn{ width:64px; height:64px; font-size:0.6rem; }
+    .quick-stats{ padding:5px 9px; min-width:64px; } .qs-score{ font-size:0.95rem; } .qs-row{ font-size:0.55rem; }
+    footer{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<button id="settingsGearBtn" title="Master settings">&#9881;</button>
+
+<h1>DODGE THE SU</h1>
+<div class="subtitle">a from-scratch web recreation of an old friend-group Game Maker game, rebuilt straight from the decompiled original &mdash; real cars, a real chase, real bad puns</div>
+
+<div class="layout">
+
+  <div class="side side-stats">
+    <div class="panel">
+      <h3>SCORE</h3>
+      <div class="value" id="score">0</div>
+    </div>
+    <div class="panel">
+      <h3>CARS LEFT</h3>
+      <div class="value" id="lives">3</div>
+    </div>
+    <div class="panel">
+      <h3>PETROL</h3>
+      <div class="fuel-bar-outer"><div class="fuel-bar-inner" id="fuelBar"></div></div>
+    </div>
+  </div>
+
+  <div class="board-wrap">
+    <canvas id="board" width="640" height="480"></canvas>
+    <div class="overlay" id="startOverlay">
+      <img class="logo-img" src="assets/img/39_sprite39.png" alt="Dodge The Su">
+      <p class="blurb">Dodge the traffic, grab gas before you run dry, and watch out
+      once the real <b>Su</b> shows up &mdash; he does not want to be dodged.<br>
+      Arrows/WASD to move, Space to fire the mounted uzi.</p>
+      <div class="leaderboard">
+        <h3>HIGH SCORES</h3>
+        <ol id="lbStart"></ol>
+      </div>
+      <button id="startBtn">PRESS ENTER TO START</button>
+    </div>
+    <div class="overlay" id="pauseOverlay" hidden>
+      <h2>PAUSED</h2>
+      <p>Press P to resume</p>
+    </div>
+    <div class="overlay" id="overOverlay" hidden>
+      <h2>WASTED</h2>
+      <p class="score-line" id="finalScore">Score: 0</p>
+      <div id="nameEntry" hidden>
+        <p class="prompt">NEW HIGH SCORE!</p>
+        <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="YOUR NAME">
+        <button id="submitScoreBtn">SUBMIT</button>
+        <p class="name-error" id="nameError" hidden>Please choose a different name</p>
+      </div>
+      <div class="leaderboard" id="lbOverWrap" hidden>
+        <h3>HIGH SCORES</h3>
+        <ol id="lbOver"></ol>
+      </div>
+      <button id="restartBtn">PRESS ENTER TO RESTART</button>
+    </div>
+  </div>
+
+  <div class="side side-next">
+    <div class="panel controls-list">
+      <h3>CONTROLS</h3>
+      <div><b>&larr;&uarr;&rarr;&darr; / WASD</b> drive</div>
+      <div><b>Space</b> fire uzi</div>
+      <div><b>P</b> pause</div>
+      <div><b>Esc</b> exit</div>
+      <div><b>M</b> mute sound</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toolbar">
+  <button id="muteBtn">MUTE SOUND</button>
+  <button id="pauseBtn">PAUSE</button>
+  <button id="exitBtn" hidden>EXIT</button>
+</div>
+
+<div class="touch-controls">
+  <div class="pad-row">
+    <div class="dpad">
+      <div class="empty"></div>
+      <button class="arc-btn" data-action="up" aria-label="Up">&#9650;</button>
+      <div class="empty"></div>
+      <button class="arc-btn" data-action="left" aria-label="Left">&#9664;</button>
+      <div class="empty"></div>
+      <button class="arc-btn" data-action="right" aria-label="Right">&#9654;</button>
+      <div class="empty"></div>
+      <button class="arc-btn" data-action="down" aria-label="Down">&#9660;</button>
+      <div class="empty"></div>
+    </div>
+    <div class="quick-stats">
+      <div class="qs-score" id="scoreM">0</div>
+      <div class="qs-row"><span>CARS</span><span id="livesM">3</span></div>
+    </div>
+    <div class="fire-pad">
+      <button class="arc-btn fire-btn" data-action="fire" aria-label="Fire">FIRE</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  "Dodge The Su" is an original amateur game made years ago for a small group of
+  friends, using several friends' own real photos and voice clips with their
+  knowledge as part of the joke - which is also why this page sits behind a
+  passphrase rather than being open to the public. This page is a ground-up web
+  recreation of that original Game Maker game, rebuilt by decoding the original
+  .exe - no original binary is shipped or run here. Background music is not
+  bundled (the original used a commercial track that can't be redistributed) -
+  add your own via the &#9881; settings panel.
+</footer>
+
+<div id="settingsBackdrop" hidden>
+  <div id="settingsPanel">
+    <h2>MASTER SETTINGS</h2>
+    <div class="sub">
+      Runs entirely in your browser. Nothing here is ever uploaded anywhere -
+      your file stays on this device only, so you're the one responsible for
+      whatever you load in.
+    </div>
+    <div class="settings-row">
+      <label for="musicFileInput">Background music (MP3/OGG/M4A, loops automatically)</label>
+      <input type="file" id="musicFileInput" accept="audio/*">
+      <div class="settings-status" id="musicStatus"></div>
+    </div>
+    <div class="settings-row">
+      <label for="musicVolume">Music volume</label>
+      <input type="range" id="musicVolume" min="0" max="100" value="50">
+    </div>
+    <div class="settings-actions">
+      <button class="secondary" id="clearMusicBtn">Remove music</button>
+      <button id="closeSettingsBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- analytics ----------
+  // Same shared visit-tracking pattern used by Tetris/Asteroids/Snake (see
+  // analytics/backend at the repo root). Isolated in its own try/catch so
+  // it can never break the game if the Worker is unreachable.
+  (function () {
+    try {
+      var ANALYTICS_API = 'https://site-analytics.mzhussein42.workers.dev/track';
+      var COOKIE_NAME = 'visitor_id';
+      function readCookie(name) {
+        var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      function newId() {
+        return (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+      }
+      var isNewVisitor = false;
+      var visitorId = readCookie(COOKIE_NAME);
+      if (!visitorId) {
+        visitorId = newId();
+        isNewVisitor = true;
+        document.cookie = COOKIE_NAME + '=' + encodeURIComponent(visitorId) + '; max-age=31536000; path=/; samesite=lax';
+      }
+      var sessionId = sessionStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = newId();
+        sessionStorage.setItem('session_id', sessionId);
+      }
+      var payload = JSON.stringify({
+        game: 'dodge-the-su',
+        visitor_id: visitorId,
+        session_id: sessionId,
+        is_new_visitor: isNewVisitor,
+        path: location.pathname,
+        referrer: document.referrer || '',
+        screen_w: window.screen ? window.screen.width : null,
+        screen_h: window.screen ? window.screen.height : null,
+        lang: navigator.language || '',
+      });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(ANALYTICS_API, new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch(ANALYTICS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function () {});
+      }
+    } catch (e) { /* analytics must never break the game */ }
+  })();
+
+  // ---------- constants ----------
+  // Faithful to the original Game Maker 7 project this was decoded from:
+  // 640x480 room, road occupies x:[0,392] (the rest is off-road/HUD space
+  // in the original canvas-drawn UI, replaced here by the side panels),
+  // the original ran its room at "speed 40" (40 logic steps/sec) and all
+  // GML pixel-per-step speeds below are copied straight from the decoded
+  // object actions, so the fixed-step loop below runs logic at that same
+  // 40Hz regardless of display refresh rate.
+  const LOGIC_HZ = 40;
+  const LOGIC_DT = 1000 / LOGIC_HZ;
+  const ROAD_W = 392, ROAD_H = 480;
+  const PLAYER_X_MIN = 32, PLAYER_X_MAX = 360;
+  const PLAYER_Y_MIN = 40, PLAYER_Y_MAX = 440; // original had no vertical bound at all; this keeps it on-screen
+  const PLAYER_MOVE = { up: 5, down: 5, left: 4, right: 4 };
+  const STARTING_LIVES = 3;
+  const STARTING_PETROL = 1000;
+  const PETROL_DRAIN_PER_STEP = 1;
+  const PETROL_REFUEL = 400;
+  const GAS_ALARM_STEPS = 300; // controller alarm[0]: every 300 steps (7.5s @ 40Hz)
+  const SU_SCORE_THRESHOLD = 3000;
+
+  // ---------- asset loading ----------
+  const ASSET_BASE = 'assets/';
+  const manifest = {
+    sprite_racing: { file: '4_sprite_racing.png', w: 58, h: 128, frames: 1 },
+    sprite_racing_dead: { file: '6_sprite_racing_dead.png', w: 58, h: 128, frames: 111 },
+    car_forwards: { file: '17_car_forwards.png', w: 58, h: 128, frames: 1 },
+    car_back: { file: '19_car_back.png', w: 58, h: 128, frames: 1 },
+    car_left: { file: '18_car_left.png', w: 58, h: 128, frames: 1 },
+    car_right: { file: '14_car_right.png', w: 58, h: 128, frames: 1 },
+    sprite_car_down: { file: '3_sprite_car_down.png', w: 40, h: 55, frames: 1 },
+    sprite_car_down_dead: { file: '7_sprite_car_down_dead.png', w: 40, h: 55, frames: 98 },
+    car_down_dead_final: { file: '36_car_down_dead_final.png', w: 40, h: 55, frames: 1 },
+    sprite_car_up: { file: '35_sprite_car_up.png', w: 40, h: 55, frames: 1 },
+    sprite_car_up_dead: { file: '38_sprite_car_up_dead.png', w: 40, h: 55, frames: 98 },
+    sprite_gas: { file: '5_sprite_gas.png', w: 55, h: 60, frames: 1 },
+    sprite_police: { file: '9_sprite_police.png', w: 40, h: 55, frames: 1 },
+    sprite_police_dead: { file: '10_sprite_police_dead.png', w: 40, h: 55, frames: 1 },
+    bullet: { file: '22_bullet.png', w: 58, h: 128, frames: 1 },
+    uzi: { file: '23_uzi.png', w: 65, h: 144, frames: 2 },
+    shell: { file: '31_shell.png', w: 58, h: 128, frames: 11 },
+    tyre_marks: { file: '15_tyre_marks.png', w: 58, h: 128, frames: 1 },
+    tyre_marks_2: { file: '33_tyre_marks_2.png', w: 58, h: 128, frames: 4 },
+    bonus10: { file: '41_10.png', w: 50, h: 50, frames: 41 },
+    background0: { file: 'background0.png', w: 640, h: 347, frames: 1 },
+  };
+  const images = {};
+  let assetsReady = false;
+  function loadAssets(){
+    const names = Object.keys(manifest);
+    let remaining = names.length;
+    return new Promise((resolve) => {
+      names.forEach((name) => {
+        const def = manifest[name];
+        const img = new Image();
+        img.onload = img.onerror = () => { remaining--; if (remaining === 0) { assetsReady = true; resolve(); } };
+        img.src = ASSET_BASE + 'img/' + def.file;
+        images[name] = img;
+      });
+    });
+  }
+  // Draws frame `frameIndex` of a horizontal-strip sprite sheet, centered
+  // on (x, y) - matches how the original GM sprites were centered on their
+  // instance's x/y (all these sprites use origin (0,0) in the decoded
+  // data, i.e. top-left, but centering reads better for a recreation and
+  // every collision/spawn coordinate below is tuned against that).
+  function drawSprite(ctx, name, frameIndex, x, y){
+    const def = manifest[name];
+    const img = images[name];
+    if (!img || !assetsReady) return;
+    const fi = ((frameIndex % def.frames) + def.frames) % def.frames;
+    ctx.drawImage(img, fi * def.w, 0, def.w, def.h, Math.round(x - def.w / 2), Math.round(y - def.h / 2), def.w, def.h);
+  }
+
+  // ---------- canvas / responsive sizing ----------
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const boardWrap = document.querySelector('.board-wrap');
+  const W = 640, H = 480;
+  function resizeCanvas(){
+    const rect = boardWrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  // ---------- utility ----------
+  function rand(min, max){ return min + Math.random() * (max - min); }
+  function chance(oneInN){ return Math.random() * oneInN < 1; } // mirrors GM's action_if_dice(N): 1-in-N chance
+  function rectHit(ax, ay, aw, ah, bx, by, bw, bh){
+    return Math.abs(ax - bx) < (aw + bw) / 2 * 0.7 && Math.abs(ay - by) < (ah + bh) / 2 * 0.7;
+  }
+
+  // ---------- game state ----------
+  let state = 'ready'; // ready | playing | paused | over
+  let score = 0, lives = STARTING_LIVES, petrol = STARTING_PETROL;
+  let gasAlarm = 0;
+  let scrollY = 0;
+  let player, traffic, bullets, muzzles, shells, tireMarks, bonuses, su;
+  let keys = {};
+  const touchState = { up:false, down:false, left:false, right:false, fire:false };
+
+  function newPlayer(){
+    return {
+      x: 200, y: 340, dead: false, deadFrame: 0, deadTimer: 0,
+      facing: 'sprite_racing', vy: 0,
+    };
+  }
+
+  function resetGame(){
+    score = 0; lives = STARTING_LIVES; petrol = STARTING_PETROL; gasAlarm = GAS_ALARM_STEPS;
+    scrollY = 0;
+    player = newPlayer();
+    traffic = []; bullets = []; muzzles = []; shells = []; tireMarks = []; bonuses = [];
+    su = null;
+    updateHud();
+  }
+
+  function spawnTraffic(kind){
+    // kind: 'down' (fast, 3 lanes/speeds) or 'up' (slower, 3 lanes/speeds) -
+    // names kept from the original object names (car_down / car_up); both
+    // actually travel downward on screen, they just differ in lane/speed
+    // profile, exactly as decoded from the original's Create event.
+    const lanes = kind === 'down'
+      ? [{ x: 44 + 120, vy: 7 }, { x: 44 + 60, vy: 8 }, { x: 44, vy: 7 }]
+      : [{ x: 44 + 300, vy: 4 }, { x: 44 + 240, vy: 2 }, { x: 44 + 180, vy: 1 }];
+    let pick = lanes[2];
+    if (chance(2)) pick = lanes[1];
+    if (chance(3)) pick = lanes[0];
+    traffic.push({
+      kind, x: pick.x, y: -80, vy: pick.vy, dead: false, deadFrame: 0,
+      sprite: kind === 'down' ? 'sprite_car_down' : 'sprite_car_up',
+      deadSprite: kind === 'down' ? 'sprite_car_down_dead' : 'sprite_car_up_dead',
+      finalSprite: kind === 'down' ? 'sprite_car_down_dead' : 'sprite_car_up_dead',
+    });
+  }
+
+  function spawnGas(){
+    traffic.push({ kind: 'gas', x: 40 + rand(0, 320), y: -40, vy: 5, dead: false });
+  }
+
+  function trySpawnSu(){
+    if (su) return;
+    su = { x: player.x, y: H, vy: -1.5, dead: false, deadFrame: 0 };
+    sfx.rain.currentTime = 0; sfx.rain.loop = false; playSfx(sfx.rain);
+  }
+
+  function killSu(byBullet, atX, atY){
+    if (!su) return;
+    su.dead = true;
+    stopSfx(sfx.rain);
+    if (byBullet) {
+      playSfx(sfx.cheer); playSfx(sfx.no1);
+      bonuses.push({ x: atX, y: atY, frame: 0 });
+    }
+    setTimeout(() => { su = null; }, 600);
+  }
+
+  function fireBullet(){
+    if (petrol <= 0 || player.dead) return;
+    bullets.push({ x: player.x, y: player.y, vy: -8, dead: false });
+    shells.push({ x: player.x, y: player.y, vx: -4, vy: 5, frame: 0 });
+    muzzles.push({ x: player.x, y: player.y, frame: 0 });
+    playSfx(sfx.gunshot);
+  }
+
+  function killPlayer(){
+    if (player.dead) return;
+    player.dead = true; player.deadFrame = 0; player.vy = 6;
+    playSfx(sfx.collision);
+  }
+
+  function respawnOrEnd(){
+    lives -= 1;
+    updateHud();
+    if (lives <= 0) { gameOver(); return; }
+    player = newPlayer();
+  }
+
+  // ---------- update ----------
+  function stepGame(){
+    score += 1;
+
+    // background scroll (matches the original's background v_speed)
+    scrollY = (scrollY + 6) % manifest.background0.h;
+
+    // controller: petrol drain, alarm-based gas spawns, traffic spawns
+    if (!player.dead) {
+      if (petrol > 0) petrol -= PETROL_DRAIN_PER_STEP;
+      if (petrol <= 0) player.vy = 3; // out of fuel - car drifts, matches the original
+    }
+    gasAlarm -= 1;
+    if (gasAlarm <= 0) {
+      spawnGas();
+      gasAlarm = GAS_ALARM_STEPS + Math.floor(score / 100);
+    }
+    if (chance(Math.max(4, 70 - Math.floor(score / 200)))) spawnTraffic('down');
+    if (chance(Math.max(20, 200 - Math.floor(score / 200)))) spawnTraffic('up');
+    if (score > SU_SCORE_THRESHOLD && chance(Math.max(150, 800 - Math.floor(score / 30)))) trySpawnSu();
+
+    // player input / movement
+    if (!player.dead && petrol > 0) {
+      const left = keys.ArrowLeft || keys.KeyA || touchState.left;
+      const right = keys.ArrowRight || keys.KeyD || touchState.right;
+      const up = keys.ArrowUp || keys.KeyW || touchState.up;
+      const down = keys.ArrowDown || keys.KeyS || touchState.down;
+      const fire = keys.Space || touchState.fire;
+      if (up) { player.y -= PLAYER_MOVE.up; player.facing = 'car_forwards'; tireMarks.push({ x: player.x, y: player.y + 60, frame: 0 }); }
+      else if (down) { player.y += PLAYER_MOVE.down; player.facing = 'car_back'; }
+      else if (right) { if (player.x < PLAYER_X_MAX) player.x += PLAYER_MOVE.right; player.facing = 'car_right'; }
+      else if (left) { if (player.x > PLAYER_X_MIN) player.x -= PLAYER_MOVE.left; player.facing = 'car_left'; }
+      else { player.facing = 'sprite_racing'; }
+      player.x = Math.max(PLAYER_X_MIN, Math.min(PLAYER_X_MAX, player.x));
+      player.y = Math.max(PLAYER_Y_MIN, Math.min(PLAYER_Y_MAX, player.y));
+      if (fire) fireBullet();
+    } else if (player.dead) {
+      player.y += player.vy;
+      player.deadFrame += 1;
+      if (player.y > H + 40) respawnOrEnd();
+    } else if (petrol <= 0) {
+      // Out of fuel: the original set the player's vspeed (a GM instance
+      // variable that auto-applies every step) rather than a one-off
+      // move, so the stalled car keeps drifting downward, off-screen,
+      // exactly like a crash - it just isn't "dead" (no burning-wreck
+      // sprite/immunity) on the way there.
+      player.y += player.vy;
+      if (player.y > H + 40) respawnOrEnd();
+    }
+
+    // traffic
+    for (const t of traffic) {
+      if (t.dead) { t.deadFrame += 1; continue; }
+      t.y += t.vy;
+      if (t.kind === 'gas') {
+        if (rectHit(t.x, t.y, 55, 60, player.x, player.y, 58, 128) && !player.dead) {
+          t.dead = true; petrol = Math.min(STARTING_PETROL, petrol + PETROL_REFUEL);
+          playSfx(sfx.gas);
+        }
+        continue;
+      }
+      for (const b of bullets) {
+        if (!b.dead && rectHit(t.x, t.y, 40, 55, b.x, b.y, 10, 20)) {
+          b.dead = true; t.dead = true;
+          bonuses.push({ x: t.x, y: t.y, frame: 0 });
+          playSfx(sfx.collision);
+        }
+      }
+      if (!t.dead && !player.dead && rectHit(t.x, t.y, 40, 55, player.x, player.y, 58, 128)) {
+        t.dead = true;
+        tireMarks.push({ x: player.x, y: player.y, frame: 0 });
+        killPlayer();
+      }
+      if (su && !su.dead && !t.dead && rectHit(t.x, t.y, 40, 55, su.x, su.y, 40, 55)) {
+        t.dead = true; killSu(false, su.x, su.y);
+      }
+    }
+    traffic = traffic.filter((t) => t.y < H + 60 && !(t.dead && t.deadFrame > (t.kind === 'gas' ? 0 : 90)));
+
+    // su (the chaser)
+    if (su && !su.dead) {
+      su.y += su.vy;
+      if (su.x < player.x) su.x += 2; else if (su.x > player.x) su.x -= 2;
+      for (const b of bullets) {
+        if (!b.dead && rectHit(su.x, su.y, 40, 55, b.x, b.y, 10, 20)) {
+          b.dead = true; killSu(true, su.x, su.y);
+        }
+      }
+      if (!player.dead && rectHit(su.x, su.y, 40, 55, player.x, player.y, 58, 128)) {
+        killSu(false, su.x, su.y); killPlayer();
+      }
+      if (su.y < -20 || su.y > H + 20) su = null;
+    }
+
+    // bullets / shells / muzzles / tire marks / bonus popups
+    for (const b of bullets) b.y += b.vy;
+    bullets = bullets.filter((b) => !b.dead && b.y > -40);
+    for (const s of shells) { s.x += s.vx; s.y += s.vy; s.frame += 1; }
+    shells = shells.filter((s) => s.frame < manifest.shell.frames * 3);
+    for (const m of muzzles) m.frame += 1;
+    muzzles = muzzles.filter((m) => m.frame < manifest.uzi.frames * 3);
+    for (const tm of tireMarks) { tm.y += 6; tm.frame += 1; }
+    tireMarks = tireMarks.filter((tm) => tm.y < H + 20);
+    for (const bo of bonuses) bo.frame += 1;
+    bonuses = bonuses.filter((bo) => bo.frame < manifest.bonus10.frames);
+  }
+
+  // ---------- drawing ----------
+  function drawBackground(){
+    const img = images.background0;
+    if (!assetsReady) return;
+    const bw = manifest.background0.w, bh = manifest.background0.h;
+    let y = -(scrollY % bh);
+    while (y < H) { ctx.drawImage(img, 0, 0, bw, bh, 0, y, bw, bh); y += bh; }
+  }
+
+  function draw(){
+    const rect = boardWrap.getBoundingClientRect();
+    const scaleX = canvas.width / W, scaleY = canvas.height / H;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scaleX, scaleY);
+
+    drawBackground();
+
+    for (const tm of tireMarks) drawSprite(ctx, 'tyre_marks_2', Math.floor(tm.frame / 3), tm.x, tm.y);
+    for (const s of shells) drawSprite(ctx, 'shell', Math.floor(s.frame / 3), s.x, s.y);
+
+    for (const t of traffic) {
+      if (t.kind === 'gas') { if (!t.dead) drawSprite(ctx, 'sprite_gas', 0, t.x, t.y); continue; }
+      if (t.dead) drawSprite(ctx, t.deadSprite, Math.min(t.deadFrame, manifest[t.deadSprite].frames - 1), t.x, t.y);
+      else drawSprite(ctx, t.sprite, 0, t.x, t.y);
+    }
+
+    if (su) {
+      if (su.dead) drawSprite(ctx, 'sprite_police_dead', 0, su.x, su.y);
+      else drawSprite(ctx, 'sprite_police', 0, su.x, su.y);
+    }
+
+    for (const b of bullets) drawSprite(ctx, 'bullet', 0, b.x, b.y);
+    for (const m of muzzles) drawSprite(ctx, 'uzi', Math.floor(m.frame / 3), m.x, m.y - 60);
+
+    if (player.dead) drawSprite(ctx, 'sprite_racing_dead', Math.min(player.deadFrame, manifest.sprite_racing_dead.frames - 1), player.x, player.y);
+    else drawSprite(ctx, player.facing, 0, player.x, player.y);
+
+    for (const bo of bonuses) drawSprite(ctx, 'bonus10', bo.frame, bo.x, bo.y - bo.frame * 1.5);
+
+    ctx.restore();
+  }
+
+  // ---------- HUD ----------
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const fuelBar = document.getElementById('fuelBar');
+  const scoreMEl = document.getElementById('scoreM');
+  const livesMEl = document.getElementById('livesM');
+  function updateHud(){
+    scoreEl.textContent = score; scoreMEl.textContent = score;
+    livesEl.textContent = lives; livesMEl.textContent = lives;
+    const pct = Math.max(0, Math.min(100, petrol / 10));
+    fuelBar.style.width = pct + '%';
+    fuelBar.style.background = petrol > 700 ? '#2ecc40' : petrol > 300 ? '#ffb020' : '#ff4d4d';
+  }
+
+  // ---------- main loop ----------
+  let lastTime = 0, accumulator = 0;
+  function loop(time){
+    if (!lastTime) lastTime = time;
+    let dt = time - lastTime; lastTime = time;
+    if (dt > 250) dt = 250; // tab was backgrounded - don't spiral
+    if (state === 'playing') {
+      accumulator += dt;
+      while (accumulator >= LOGIC_DT) { stepGame(); accumulator -= LOGIC_DT; updateHud(); }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- audio ----------
+  // Real recorded sound effects extracted from the original game (small
+  // stock/homemade clips - gunshot, crash, cheer, and the friend-group's
+  // own voice lines), all bundled under assets/audio/. Background music is
+  // deliberately NOT bundled - see the settings panel below.
+  const sfx = {
+    gunshot: new Audio(ASSET_BASE + 'audio/gunshot.wav'),
+    collision: new Audio(ASSET_BASE + 'audio/collision.wav'),
+    gas: new Audio(ASSET_BASE + 'audio/gas.wav'),
+    cheer: new Audio(ASSET_BASE + 'audio/cheer.wav'),
+    no1: new Audio(ASSET_BASE + 'audio/no1.wav'),
+    gameOverVoice: new Audio(ASSET_BASE + 'audio/my_name_is_suraj.wav'),
+    rain: new Audio(ASSET_BASE + 'audio/rain.wav'),
+  };
+  let muted = false;
+  function playSfx(a){ if (muted) return; try { a.currentTime = 0; a.play().catch(() => {}); } catch (e) {} }
+  function stopSfx(a){ try { a.pause(); a.currentTime = 0; } catch (e) {} }
+  function toggleMute(){
+    muted = !muted;
+    document.getElementById('muteBtn').textContent = muted ? 'UNMUTE SOUND' : 'MUTE SOUND';
+    customMusic.volume = muted ? 0 : customMusicVolume;
+  }
+
+  // ---------- custom background music ("master settings" console) ----------
+  // No default track is bundled (the original used a commercial recording
+  // that can't be redistributed on a public site). Instead, the player can
+  // load their own audio file here - it's read straight into an object URL
+  // and kept in IndexedDB so it persists on this device/browser only. It
+  // is never sent anywhere, which is exactly why this is safe to ship: the
+  // player is responsible for whatever they choose to load.
+  const customMusic = new Audio();
+  customMusic.loop = true;
+  let customMusicVolume = 0.5;
+  const DB_NAME = 'dodge-the-su-settings', STORE = 'files';
+  function openDb(){
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function saveMusicFile(blob){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(blob, 'music');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function loadMusicFile(){
+    try {
+      const db = await openDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readonly');
+        const req = tx.objectStore(STORE).get('music');
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) { return null; }
+  }
+  async function clearMusicFile(){
+    try {
+      const db = await openDb();
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete('music');
+    } catch (e) { /* ignore */ }
+  }
+  function setMusicStatus(text, ok){
+    const el = document.getElementById('musicStatus');
+    el.textContent = text;
+    el.className = 'settings-status' + (ok ? ' ok' : '');
+  }
+  async function initCustomMusic(){
+    const blob = await loadMusicFile();
+    if (blob) {
+      customMusic.src = URL.createObjectURL(blob);
+      setMusicStatus('Loaded from a previous visit ✓', true);
+    }
+  }
+  function startMusic(){ if (customMusic.src && state === 'playing') customMusic.play().catch(() => {}); }
+  function stopMusic(){ customMusic.pause(); }
+
+  document.getElementById('musicFileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    await saveMusicFile(file);
+    customMusic.src = URL.createObjectURL(file);
+    setMusicStatus('Loaded: ' + file.name, true);
+    startMusic();
+  });
+  document.getElementById('musicVolume').addEventListener('input', (e) => {
+    customMusicVolume = Number(e.target.value) / 100;
+    customMusic.volume = muted ? 0 : customMusicVolume;
+  });
+  document.getElementById('clearMusicBtn').addEventListener('click', async () => {
+    stopMusic(); customMusic.removeAttribute('src'); customMusic.load();
+    await clearMusicFile();
+    setMusicStatus('Removed', false);
+  });
+  document.getElementById('settingsGearBtn').addEventListener('click', () => { document.getElementById('settingsBackdrop').hidden = false; });
+  document.getElementById('closeSettingsBtn').addEventListener('click', () => { document.getElementById('settingsBackdrop').hidden = true; });
+  document.getElementById('settingsBackdrop').addEventListener('click', (e) => { if (e.target.id === 'settingsBackdrop') e.currentTarget.hidden = true; });
+
+  // ---------- leaderboard ----------
+  const LEADERBOARD_API = 'https://dodge-the-su-leaderboard.mzhussein42.workers.dev/leaderboard';
+  const LEADERBOARD_KEY = 'dodge_the_su_leaderboard_v1';
+  const LEADERBOARD_MAX = 10;
+  const LEADERBOARD_SHOW = 5;
+
+  let sessionToken = null;
+  async function requestSessionToken(){
+    sessionToken = null;
+    try {
+      const res = await fetch(LEADERBOARD_API.replace(/\/leaderboard$/, '/session'), { method: 'POST' });
+      if (res.ok){ const body = await res.json(); if (body && typeof body.token === 'string') sessionToken = body.token; }
+    } catch (e) { /* worker unreachable - submission will fall back to local storage */ }
+  }
+
+  const BANNED_SUBSTRINGS = [
+    'fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'cock', 'asshole',
+    'bastard', 'whore', 'slut', 'fag', 'nigger', 'nigga', 'retard', 'rape',
+    'nazi', 'hitler', 'kike', 'chink', 'spic', 'wetback', 'tranny',
+  ];
+  function normalizeForFilter(s){
+    return String(s).toLowerCase()
+      .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e')
+      .replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't')
+      .replace(/@/g, 'a').replace(/\$/g, 's').replace(/[^a-z]/g, '');
+  }
+  function isBannedName(name){ const n = normalizeForFilter(name); return BANNED_SUBSTRINGS.some((w) => n.includes(w)); }
+  const ANON_SUBSTRINGS = ['anon', 'anonymous', 'unknown', 'nobody', 'noone', 'nameless', 'noname', 'incognito'];
+  function isAnonName(name){ const n = normalizeForFilter(name); return ANON_SUBSTRINGS.some((w) => n.includes(w)); }
+
+  function loadLocalLeaderboard(){
+    try { const arr = JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]'); return Array.isArray(arr) ? arr : []; }
+    catch (e){ return []; }
+  }
+  function saveLocalLeaderboard(list){
+    try { localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(list)); } catch (e){ /* storage unavailable, ignore */ }
+  }
+  function addToLocalLeaderboard(name, s){
+    const list = loadLocalLeaderboard();
+    list.push({ name: name || 'ANON', score: s });
+    list.sort((a, b) => b.score - a.score);
+    list.length = Math.min(list.length, LEADERBOARD_MAX);
+    saveLocalLeaderboard(list);
+    return list;
+  }
+  async function loadLeaderboard(){
+    try {
+      const res = await fetch(LEADERBOARD_API);
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return list;
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return loadLocalLeaderboard();
+  }
+  async function qualifiesForLeaderboard(s){
+    if (s <= 0) return false;
+    const list = await loadLeaderboard();
+    if (list.length < LEADERBOARD_MAX) return true;
+    return s > list[list.length - 1].score;
+  }
+  async function addToLeaderboard(name, s){
+    try {
+      const res = await fetch(LEADERBOARD_API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || 'ANON', score: s, token: sessionToken }),
+      });
+      if (res.status === 400){
+        const body = await res.json().catch(() => ({}));
+        if (body && body.error === 'inappropriate name') return { rejected: true, reason: 'inappropriate' };
+        if (body && body.error === 'anonymous name') return { rejected: true, reason: 'anonymous' };
+      }
+      if (!res.ok) throw new Error('bad status ' + res.status);
+      const list = await res.json();
+      if (Array.isArray(list)) return { list };
+    } catch (e){ /* worker unreachable - fall back below */ }
+    return { list: addToLocalLeaderboard(name, s) };
+  }
+  function renderLeaderboard(listEl, entries, highlightIndex){
+    listEl.innerHTML = '';
+    const shown = entries.slice(0, LEADERBOARD_SHOW);
+    if (shown.length === 0){
+      const li = document.createElement('li');
+      li.className = 'lb-empty'; li.textContent = 'No scores yet — be the first!';
+      listEl.appendChild(li); return;
+    }
+    shown.forEach((e, i) => {
+      const li = document.createElement('li');
+      if (i === highlightIndex) li.className = 'lb-highlight';
+      const rank = document.createElement('span'); rank.className = 'lb-rank'; rank.textContent = (i + 1) + '.';
+      const name = document.createElement('span'); name.className = 'lb-name'; name.textContent = String(e.name || '???').slice(0, 12);
+      const sc = document.createElement('span'); sc.className = 'lb-score'; sc.textContent = e.score;
+      li.appendChild(rank); li.appendChild(name); li.appendChild(sc);
+      listEl.appendChild(li);
+    });
+  }
+
+  // ---------- overlays / flow ----------
+  const startOverlay = document.getElementById('startOverlay');
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  const overOverlay = document.getElementById('overOverlay');
+  const finalScoreEl = document.getElementById('finalScore');
+  const nameEntry = document.getElementById('nameEntry');
+  const nameInput = document.getElementById('nameInput');
+  const nameErrorEl = document.getElementById('nameError');
+  const submitScoreBtn = document.getElementById('submitScoreBtn');
+  const lbStartEl = document.getElementById('lbStart');
+  const lbOverEl = document.getElementById('lbOver');
+  const lbOverWrap = document.getElementById('lbOverWrap');
+  const restartBtn = document.getElementById('restartBtn');
+  const exitBtn = document.getElementById('exitBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  let gameOverToken = 0;
+  async function gameOver(){
+    state = 'over';
+    const finalScore = score;
+    const myToken = ++gameOverToken;
+    finalScoreEl.textContent = 'Score: ' + finalScore;
+    stopMusic();
+    playSfx(sfx.gameOverVoice);
+
+    nameEntry.hidden = true; lbOverWrap.hidden = true; restartBtn.hidden = true; exitBtn.hidden = true;
+    overOverlay.hidden = false;
+
+    const qualifies = await qualifiesForLeaderboard(finalScore);
+    if (myToken !== gameOverToken) return;
+
+    if (qualifies){
+      nameEntry.hidden = false; nameInput.value = ''; nameErrorEl.hidden = true;
+      setTimeout(() => nameInput.focus(), 50);
+    } else {
+      lbOverWrap.hidden = false;
+      renderLeaderboard(lbOverEl, await loadLeaderboard(), -1);
+      restartBtn.hidden = false;
+    }
+  }
+
+  async function submitScore(){
+    const finalScore = score;
+    const myToken = gameOverToken;
+    const name = (nameInput.value || '').trim().slice(0, 12).toUpperCase() || 'ANON';
+    if (isAnonName(name)){
+      nameErrorEl.textContent = "No hiding - you can't hide behind your shame. Enter a real name.";
+      nameErrorEl.hidden = false; return;
+    }
+    if (isBannedName(name)){
+      nameErrorEl.textContent = 'Please choose a different name.'; nameErrorEl.hidden = false; return;
+    }
+    nameErrorEl.hidden = true;
+    submitScoreBtn.disabled = true;
+    const result = await addToLeaderboard(name, finalScore);
+    submitScoreBtn.disabled = false;
+    if (myToken !== gameOverToken) return;
+    if (result.rejected){
+      nameErrorEl.textContent = result.reason === 'anonymous'
+        ? "No hiding - you can't hide behind your shame. Enter a real name."
+        : 'Please choose a different name.';
+      nameErrorEl.hidden = false; return;
+    }
+    const list = result.list;
+    const index = list.findIndex(e => e.name === name && e.score === finalScore);
+    nameEntry.hidden = true; lbOverWrap.hidden = false; restartBtn.hidden = false;
+    renderLeaderboard(lbOverEl, list, index);
+    renderLeaderboard(lbStartEl, list, -1);
+  }
+
+  function startGame(){
+    resizeCanvas();
+    resetGame();
+    state = 'playing';
+    startOverlay.hidden = true; overOverlay.hidden = true; pauseOverlay.hidden = true;
+    exitBtn.hidden = false;
+    startMusic();
+    requestSessionToken();
+  }
+  function togglePause(){
+    if (state === 'playing'){ state = 'paused'; pauseOverlay.hidden = false; stopMusic(); }
+    else if (state === 'paused'){ state = 'playing'; pauseOverlay.hidden = true; startMusic(); }
+  }
+  function exitGame(){
+    if (state !== 'playing' && state !== 'paused') return;
+    state = 'ready'; stopMusic();
+    pauseOverlay.hidden = true; overOverlay.hidden = true; exitBtn.hidden = true; startOverlay.hidden = false;
+    loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+  }
+
+  // ---------- input wiring ----------
+  window.addEventListener('keydown', (e) => {
+    if (document.activeElement === nameInput){
+      if (e.code === 'Enter'){ e.preventDefault(); submitScore(); }
+      return;
+    }
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+    if (e.code === 'Enter'){
+      if (state === 'ready' || (state === 'over' && !restartBtn.hidden)) startGame();
+      return;
+    }
+    if (e.code === 'KeyP'){ togglePause(); return; }
+    if (e.code === 'KeyM'){ toggleMute(); return; }
+    if (e.code === 'Escape'){ exitGame(); return; }
+    keys[e.code] = true;
+  });
+  window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  submitScoreBtn.addEventListener('click', submitScore);
+  muteBtn.addEventListener('click', toggleMute);
+  pauseBtn.addEventListener('click', togglePause);
+  exitBtn.addEventListener('click', exitGame);
+
+  document.querySelectorAll('.touch-controls button[data-action]').forEach(btn => {
+    const action = btn.dataset.action;
+    const start = (e) => { if (e) e.preventDefault(); touchState[action] = true; };
+    const stop = (e) => { if (e) e.preventDefault(); touchState[action] = false; };
+    btn.addEventListener('touchstart', start, {passive:false});
+    btn.addEventListener('touchend', stop);
+    btn.addEventListener('touchcancel', stop);
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', stop);
+    btn.addEventListener('mouseleave', stop);
+  });
+
+  // ---------- init ----------
+  resizeCanvas();
+  resetGame();
+  loadAssets();
+  initCustomMusic();
+  loadLeaderboard().then(list => renderLeaderboard(lbStartEl, list, -1));
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

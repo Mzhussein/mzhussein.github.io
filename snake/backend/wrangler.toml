@@ -1,0 +1,9 @@
+name = "snake-leaderboard"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# KV namespace "snake_leaderboard", created via `wrangler kv namespace
+# create` (see README.md in this folder for how it was created).
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "3197580eaeac46bca3772efe56fcb36a"

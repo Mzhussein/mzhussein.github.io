@@ -1,0 +1,21 @@
+name = "dodge-the-su-game"
+main = "gate-worker.js"
+compatibility_date = "2024-11-01"
+
+# Serves the game as a static asset, but ONLY after gate-worker.js has
+# checked for the shared-password cookie - unlike the other three games
+# on this site, this one is not meant to be public (see ../../dodge-the-su/GATE.md).
+# The GitHub Actions workflow (.github/workflows/deploy-dodge-the-su-game.yml)
+# copies dodge-the-su/index.html and dodge-the-su/assets/ into ./public
+# before running `wrangler deploy`, so that folder is CI-generated and not
+# committed itself - gate-worker.js, however, IS committed (it's this
+# Worker's actual entry point, not a build output).
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Custom domain is attached to this Worker via the Cloudflare dashboard
+# (Workers & Pages -> dodge-the-su-game -> Settings -> Domains & Routes) -
+# see dodge-the-su/backend/README.md for that step, and dodge-the-su/GATE.md
+# for the one-time GATE_PASSWORD secret this Worker requires before it'll
+# serve anything.

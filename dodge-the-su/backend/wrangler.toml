@@ -1,0 +1,9 @@
+name = "dodge-the-su-leaderboard"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# KV namespace "dodge_the_su_leaderboard", created via `wrangler kv namespace
+# create` (see README.md in this folder for how it was created).
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "185eff857a024c43a1dfb6ae4cd9d210"
