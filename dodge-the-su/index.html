@@ -347,21 +347,27 @@
   knowledge as part of the joke - which is also why this page sits behind a
   passphrase rather than being open to the public. This page is a ground-up web
   recreation of that original Game Maker game, rebuilt by decoding the original
-  .exe - no original binary is shipped or run here. Background music is not
-  bundled (the original used a commercial track that can't be redistributed) -
-  add your own via the &#9881; settings panel.
+  .exe - no original binary is shipped or run here. No default background
+  music ships in this repo (the original used a commercial track that
+  can't be redistributed) - whoever runs this site can check in a shared
+  track for everyone (see AUDIO.md), and you can always load your own via
+  the &#9881; settings panel just for yourself.
 </footer>
 
 <div id="settingsBackdrop" hidden>
   <div id="settingsPanel">
     <h2>MASTER SETTINGS</h2>
     <div class="sub">
-      Runs entirely in your browser. Nothing here is ever uploaded anywhere -
-      your file stays on this device only, so you're the one responsible for
-      whatever you load in.
+      This upload is personal to your own browser only - it's read straight
+      into your device's storage and never sent anywhere, so you're the one
+      responsible for whatever you load in. It overrides the shared site
+      theme (if one's been set) just for you; everyone else keeps hearing
+      the shared one. To change what <b>everyone</b> hears by default, see
+      <code>dodge-the-su/AUDIO.md</code> in the repo - that one's a
+      git-commit, not a button here, on purpose.
     </div>
     <div class="settings-row">
-      <label for="musicFileInput">Background music (MP3/OGG/M4A, loops automatically)</label>
+      <label for="musicFileInput">Background music, just for you (MP3/OGG/M4A, loops automatically)</label>
       <input type="file" id="musicFileInput" accept="audio/*">
       <div class="settings-status" id="musicStatus"></div>
     </div>
@@ -370,7 +376,7 @@
       <input type="range" id="musicVolume" min="0" max="100" value="50">
     </div>
     <div class="settings-actions">
-      <button class="secondary" id="clearMusicBtn">Remove music</button>
+      <button class="secondary" id="clearMusicBtn">Remove my upload</button>
       <button id="closeSettingsBtn">Done</button>
     </div>
   </div>
@@ -824,16 +830,22 @@
     customMusic.volume = muted ? 0 : customMusicVolume;
   }
 
-  // ---------- custom background music ("master settings" console) ----------
-  // No default track is bundled (the original used a commercial recording
-  // that can't be redistributed on a public site). Instead, the player can
-  // load their own audio file here - it's read straight into an object URL
-  // and kept in IndexedDB so it persists on this device/browser only. It
-  // is never sent anywhere, which is exactly why this is safe to ship: the
-  // player is responsible for whatever they choose to load.
+  // ---------- background music: shared default + personal override ----------
+  // No default track ships in this repo out of the box (the original used a
+  // commercial recording that can't be redistributed) - but this site is
+  // gated to friends/family, not the open public, so whoever runs it can
+  // check a real file into assets/v2/audio/bg-music.mp3 (see AUDIO.md) and
+  // EVERYONE who plays hears it, looped, automatically - no per-visitor
+  // action needed. On top of that, the settings panel (below) lets any one
+  // player load their own file instead, just for themselves - read straight
+  // into an object URL and kept in this browser's IndexedDB only, never
+  // sent anywhere. Priority: a player's own personal upload always wins
+  // over the shared default, on their device only.
+  const DEFAULT_MUSIC_URL = ASSET_BASE + 'audio/bg-music.mp3';
   const customMusic = new Audio();
   customMusic.loop = true;
   let customMusicVolume = 0.5;
+  customMusic.volume = customMusicVolume; // otherwise it defaults to 1.0 until someone opens settings
   const DB_NAME = 'dodge-the-su-settings', STORE = 'files';
   function openDb(){
     return new Promise((resolve, reject) => {
@@ -879,8 +891,21 @@
     const blob = await loadMusicFile();
     if (blob) {
       customMusic.src = URL.createObjectURL(blob);
-      setMusicStatus('Loaded from a previous visit ✓', true);
+      setMusicStatus('Using your personal upload ✓ ("Remove my upload" switches back to the shared track)', true);
+      return;
     }
+    // No personal override - fall back to the shared site default, if
+    // whoever runs this site has checked one in (see AUDIO.md). Probed
+    // with HEAD first so a site with no shared track yet doesn't show a
+    // broken/misleading status - it just plays silently, same as before
+    // this feature existed.
+    try {
+      const res = await fetch(DEFAULT_MUSIC_URL, { method: 'HEAD' });
+      if (res.ok) {
+        customMusic.src = DEFAULT_MUSIC_URL;
+        setMusicStatus('Playing the shared site theme (upload your own above to hear something different, just for you)', true);
+      }
+    } catch (e) { /* no shared track yet, or offline - silently proceed without music */ }
   }
   function startMusic(){ if (customMusic.src && state === 'playing') customMusic.play().catch(() => {}); }
   function stopMusic(){ customMusic.pause(); }
@@ -900,7 +925,9 @@
   document.getElementById('clearMusicBtn').addEventListener('click', async () => {
     stopMusic(); customMusic.removeAttribute('src'); customMusic.load();
     await clearMusicFile();
-    setMusicStatus('Removed', false);
+    setMusicStatus('Removed - checking for the shared track…', false);
+    await initCustomMusic();
+    startMusic();
   });
   document.getElementById('settingsGearBtn').addEventListener('click', () => { document.getElementById('settingsBackdrop').hidden = false; });
   document.getElementById('closeSettingsBtn').addEventListener('click', () => { document.getElementById('settingsBackdrop').hidden = true; });

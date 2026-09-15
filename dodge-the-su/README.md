@@ -66,16 +66,17 @@ spot):
 ## Music
 
 The original used a real commercial recording (Bob Marley - "Stand Up
-Jamrock") as its background track, which can't be redistributed on a
-public site. Rather than ship a substitute track, this version ships
-**no** background music by default and instead has a "master settings"
-panel (the &#9881; button, top right) where you can load your own
-MP3/OGG/M4A file - it's read straight into your browser's IndexedDB and
-never leaves your device, so you're responsible for whatever you choose
-to load, the same way `AUDIO.md` at the repo root already works for the
-Tetris theme (that one's a git-commit swap; this one's a live in-page
-upload, since a driving/dodging game's "pick your own soundtrack" fits
-better as a real control than a repo file).
+Jamrock") as its background track, which can't be redistributed. No
+substitute track ships here by default. Two independent ways to add
+music, both documented in `AUDIO.md` in this folder:
+- **Shared, for everyone**: check a file into
+  `assets/v2/audio/bg-music.mp3` via git/GitHub's web UI (same mechanic
+  as the root `../AUDIO.md`'s Tetris theme) - every visitor hears it,
+  looped, automatically, no action needed on their end.
+- **Personal, just for one player**: the "master settings" panel (the
+  &#9881; button, top right) lets anyone load their own MP3/OGG/M4A -
+  read straight into that browser's IndexedDB, never sent anywhere, and
+  overrides the shared track for them only.
 
 ## Provenance
 
