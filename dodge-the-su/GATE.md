@@ -49,6 +49,47 @@ class of bug directly, live, on any future change here - don't just trust
 that a Worker with an `[assets]` binding routes through your `fetch`
 handler by default. It doesn't.
 
+## Incident 2: run_worker_first was correct but a stale edge cache wasn't
+
+After the fix above deployed and was verified live-and-correct (a
+never-before-requested path correctly got a 503 from `gate-worker.js`,
+proving the Worker ran unconditionally), `/` and the one specific asset
+path that had been requested *during* incident 1's exposure window kept
+returning `200` with the real content anyway - same `ETag`, even with a
+cache-busting query string.
+
+Cause: the Workers Static Assets binding serves files with long-lived,
+effectively-immutable `Cache-Control` by default. The vulnerable deploy
+served `/` and that image with those headers before `run_worker_first`
+existed; Cloudflare's edge cached those exact responses. A cache **hit**
+is served straight from the edge before the Worker is ever invoked, for
+any request - `run_worker_first` only affects what happens on a cache
+*miss*. Since nothing about that deploy's HTML/image *content* changed
+(only routing config did), the new deploy produced byte-identical
+responses, so Cloudflare correctly kept treating the cached copies as
+still valid. No `run_worker_first` setting, by itself, can retroactively
+un-cache a response that was already cached before it existed. A
+`*.workers.dev` host also isn't a purgeable zone, so the normal
+Cache-Purge-by-URL API doesn't reach it either.
+
+Two-part fix, both in this repo, no dashboard/API purge needed:
+- `gate-worker.js` now forces `Cache-Control: private, no-store` (and
+  strips `ETag`/`Last-Modified`) on **every** response it returns,
+  including whatever `env.ASSETS.fetch()` hands back - so nothing this
+  Worker ever serves is cacheable anywhere again, closing this off for
+  good regardless of what Cloudflare's asset-serving defaults do.
+- The asset paths moved from `assets/img/`, `assets/audio/` to
+  `assets/v2/img/`, `assets/v2/audio/` (see the comment above
+  `ASSET_BASE` in `index.html`) - every URL under the old paths is now
+  one nothing serves, so the already-cached copies are simply orphaned
+  rather than something to race a purge against, and every new path is a
+  guaranteed cache miss that has to go through the (now correctly
+  no-store'd) Worker.
+
+If this ever needs to happen a third time, bump the asset path again
+(`v3`, etc.) rather than reusing an old one, and confirm the `no-store`
+header is actually present on a live response before trusting it.
+
 ## Changing or rotating the passphrase
 
 Repeat the steps above with a new value. Anyone with the old passphrase's

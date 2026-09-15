@@ -268,7 +268,7 @@
   <div class="board-wrap">
     <canvas id="board" width="640" height="480"></canvas>
     <div class="overlay" id="startOverlay">
-      <img class="logo-img" src="assets/img/39_sprite39.png" alt="Dodge The Su">
+      <img class="logo-img" src="assets/v2/img/39_sprite39.png" alt="Dodge The Su">
       <p class="blurb">Dodge the traffic, grab gas before you run dry, and watch out
       once the real <b>Su</b> shows up &mdash; he does not want to be dodged.<br>
       Arrows/WASD to move, Space to fire the mounted uzi.</p>
@@ -448,7 +448,17 @@
   const SU_SCORE_THRESHOLD = 3000;
 
   // ---------- asset loading ----------
-  const ASSET_BASE = 'assets/';
+  // "v2" isn't a version number, it's a cache-buster: the original
+  // assets/img,audio paths got served (briefly, unauthenticated) before
+  // the gate's run_worker_first fix existed, and Cloudflare cached those
+  // exact responses at the edge with long-lived Cache-Control headers -
+  // a cache hit is served before the Worker ever runs, so no config
+  // change alone can un-expose an already-cached URL. Moving to new
+  // paths makes every request a guaranteed-fresh cache miss instead of
+  // trying to purge a *.workers.dev host that isn't a purgeable zone. If
+  // this ever needs to happen again, bump this again rather than reusing
+  // "v2".
+  const ASSET_BASE = 'assets/v2/';
   const manifest = {
     sprite_racing: { file: '4_sprite_racing.png', w: 58, h: 128, frames: 1 },
     sprite_racing_dead: { file: '6_sprite_racing_dead.png', w: 58, h: 128, frames: 111 },
