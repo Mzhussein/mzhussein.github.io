@@ -1,0 +1,30 @@
+name: Deploy Dodge The Su to Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dodge-the-su/index.html'
+      - 'dodge-the-su/assets/**'
+      - 'deploy/dodge-the-su-game/**'
+      - '.github/workflows/deploy-dodge-the-su-game.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stage the static site
+        run: |
+          mkdir -p deploy/dodge-the-su-game/public
+          cp dodge-the-su/index.html deploy/dodge-the-su-game/public/index.html
+          cp -r dodge-the-su/assets deploy/dodge-the-su-game/public/assets
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: deploy/dodge-the-su-game
+          command: deploy
