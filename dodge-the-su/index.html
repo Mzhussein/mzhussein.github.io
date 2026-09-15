@@ -728,7 +728,12 @@
     const img = images.background0;
     if (!assetsReady) return;
     const bw = manifest.background0.w, bh = manifest.background0.h;
-    let y = -(scrollY % bh);
+    // The original's background had a positive v_speed (5/6), which in
+    // GameMaker means the tile's own draw position moves to a larger y
+    // each step - i.e. it scrolls DOWN the screen (road flows toward the
+    // player, matching "driving forward"). Starting the offset at
+    // -(scrollY % bh) instead moved it up as scrollY grew - backwards.
+    let y = (scrollY % bh) - bh;
     while (y < H) { ctx.drawImage(img, 0, 0, bw, bh, 0, y, bw, bh); y += bh; }
   }
 
