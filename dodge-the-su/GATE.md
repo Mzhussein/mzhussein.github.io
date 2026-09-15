@@ -49,46 +49,60 @@ class of bug directly, live, on any future change here - don't just trust
 that a Worker with an `[assets]` binding routes through your `fetch`
 handler by default. It doesn't.
 
-## Incident 2: run_worker_first was correct but a stale edge cache wasn't
+## Incident 2 (superseded below): a caching theory that looked right, wasn't the cause
 
-After the fix above deployed and was verified live-and-correct (a
-never-before-requested path correctly got a 503 from `gate-worker.js`,
-proving the Worker ran unconditionally), `/` and the one specific asset
-path that had been requested *during* incident 1's exposure window kept
-returning `200` with the real content anyway - same `ETag`, even with a
-cache-busting query string.
+After incident 1's fix deployed, `/` and one specific asset path still
+came back `200` with real content - including on a brand-new path that
+had never been requested before, which is the detail that eventually
+disproved the theory below. At the time it looked like a plausible
+Cloudflare edge-cache issue (a never-invalidated, effectively-immutable
+cached response from before the fix existed), and `gate-worker.js` was
+hardened to force `Cache-Control: private, no-store` on every response,
+with the asset paths versioned (`assets/img,audio` → `assets/v2/img,audio`)
+to guarantee fresh cache keys. Both changes are harmless, reasonable
+defense-in-depth and were kept - but they were not the actual fix,
+because a brand-new path, never served or cached before, **still**
+bypassed the Worker on its very first-ever request. That's not
+explainable by any cache theory. See incident 3 for the real cause.
 
-Cause: the Workers Static Assets binding serves files with long-lived,
-effectively-immutable `Cache-Control` by default. The vulnerable deploy
-served `/` and that image with those headers before `run_worker_first`
-existed; Cloudflare's edge cached those exact responses. A cache **hit**
-is served straight from the edge before the Worker is ever invoked, for
-any request - `run_worker_first` only affects what happens on a cache
-*miss*. Since nothing about that deploy's HTML/image *content* changed
-(only routing config did), the new deploy produced byte-identical
-responses, so Cloudflare correctly kept treating the cached copies as
-still valid. No `run_worker_first` setting, by itself, can retroactively
-un-cache a response that was already cached before it existed. A
-`*.workers.dev` host also isn't a purgeable zone, so the normal
-Cache-Purge-by-URL API doesn't reach it either.
+## Incident 3: run_worker_first was never actually applied - wrong Wrangler version
 
-Two-part fix, both in this repo, no dashboard/API purge needed:
-- `gate-worker.js` now forces `Cache-Control: private, no-store` (and
-  strips `ETag`/`Last-Modified`) on **every** response it returns,
-  including whatever `env.ASSETS.fetch()` hands back - so nothing this
-  Worker ever serves is cacheable anywhere again, closing this off for
-  good regardless of what Cloudflare's asset-serving defaults do.
-- The asset paths moved from `assets/img/`, `assets/audio/` to
-  `assets/v2/img/`, `assets/v2/audio/` (see the comment above
-  `ASSET_BASE` in `index.html`) - every URL under the old paths is now
-  one nothing serves, so the already-cached copies are simply orphaned
-  rather than something to race a purge against, and every new path is a
-  guaranteed cache miss that has to go through the (now correctly
-  no-store'd) Worker.
+The real cause, found by checking the CI deploy logs directly instead of
+trusting that "deploy succeeded" meant the config took effect:
 
-If this ever needs to happen a third time, bump the asset path again
-(`v3`, etc.) rather than reusing an old one, and confirm the `no-store`
-header is actually present on a live response before trusting it.
+```
+⛅️ wrangler 3.90.0 (update available 4.132.0)
+▲ [WARNING] Processing wrangler.toml configuration:
+    - Unexpected fields found in assets field: "run_worker_first"
+```
+
+`cloudflare/wrangler-action@v3` in the deploy workflow is a tag on the
+GitHub *Action*, not the Wrangler CLI version it installs - with no
+`wranglerVersion` input pinned, that action release defaulted to
+installing Wrangler 3.90.0, a version that predates `run_worker_first`
+entirely. Wrangler 3.x treats an unrecognized `[assets]` field as a
+non-fatal warning, not an error, so `wrangler deploy` exited 0 and every
+CI run reported success while `run_worker_first` silently did nothing.
+That's why Cloudflare kept serving any request matching a file in the
+asset manifest - old path or brand-new - directly from its edge without
+ever invoking `gate-worker.js`, regardless of what the source said:
+**the deployed Worker was never actually configured the way the
+committed `wrangler.toml` claimed.**
+
+Fix: `.github/workflows/deploy-dodge-the-su-game.yml` now pins
+`wranglerVersion: '4.132.0'` explicitly on the deploy step - a specific
+version, not a floating major, so this can't silently drift again in
+either direction. If `run_worker_first` (or anything else version-gated)
+ever needs bumping again, check the actual CI logs for
+`Unexpected fields found` warnings before assuming a config change took
+effect just because the workflow went green.
+
+**The lesson underlying all three incidents**: a green CI run and a
+correct-looking committed config are not evidence that a Cloudflare
+Worker is actually running the way its source implies. Verify behavior
+live, and when live behavior contradicts the source, check the actual
+deploy tool's logs before reaching for a caching or platform-limitation
+explanation.
 
 ## Changing or rotating the passphrase
 
