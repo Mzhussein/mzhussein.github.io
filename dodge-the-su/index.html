@@ -157,6 +157,7 @@
   .panel h3{ margin:0 0 8px; font-size:0.7rem; letter-spacing:0.15em; color:var(--muted); font-weight:normal; }
   .panel .value{ font-size:1.3rem; color:var(--accent); }
   .panel .lives-icons{ display:flex; gap:4px; font-size:1rem; }
+  .panel input[type=range]{ width:100%; margin-top:2px; }
   .fuel-bar-outer{
     width:100%; height:14px; border:2px solid var(--border); background:#000; margin-top:2px;
   }
@@ -263,6 +264,14 @@
       <h3>PETROL</h3>
       <div class="fuel-bar-outer"><div class="fuel-bar-inner" id="fuelBar"></div></div>
     </div>
+    <div class="panel">
+      <h3>SFX VOLUME</h3>
+      <input type="range" id="sfxVolume" min="0" max="100" value="50">
+    </div>
+    <div class="panel">
+      <h3>MUSIC VOLUME</h3>
+      <input type="range" id="musicVolume" min="0" max="100" value="70">
+    </div>
   </div>
 
   <div class="board-wrap">
@@ -364,20 +373,13 @@
       theme (if one's been set) just for you; everyone else keeps hearing
       the shared one. To change what <b>everyone</b> hears by default, see
       <code>dodge-the-su/AUDIO.md</code> in the repo - that one's a
-      git-commit, not a button here, on purpose.
-    </div>
-    <div class="settings-row">
-      <label for="sfxVolume">Sound effects volume</label>
-      <input type="range" id="sfxVolume" min="0" max="100" value="80">
+      git-commit, not a button here, on purpose. (SFX/music volume live in
+      the panel to the left of the game now, not here.)
     </div>
     <div class="settings-row">
       <label for="musicFileInput">Background music, just for you (MP3/OGG/M4A, loops automatically)</label>
       <input type="file" id="musicFileInput" accept="audio/*">
       <div class="settings-status" id="musicStatus"></div>
-    </div>
-    <div class="settings-row">
-      <label for="musicVolume">Music volume</label>
-      <input type="range" id="musicVolume" min="0" max="100" value="50">
     </div>
     <div class="settings-actions">
       <button class="secondary" id="clearMusicBtn">Remove my upload</button>
@@ -835,10 +837,10 @@
     try {
       const raw = JSON.parse(localStorage.getItem(VOLUME_KEY) || '{}');
       return {
-        sfx: typeof raw.sfx === 'number' ? raw.sfx : 0.8,
-        music: typeof raw.music === 'number' ? raw.music : 0.5,
+        sfx: typeof raw.sfx === 'number' ? raw.sfx : 0.5,
+        music: typeof raw.music === 'number' ? raw.music : 0.7,
       };
-    } catch (e) { return { sfx: 0.8, music: 0.5 }; }
+    } catch (e) { return { sfx: 0.5, music: 0.7 }; }
   }
   function saveVolumePrefs(){
     try { localStorage.setItem(VOLUME_KEY, JSON.stringify({ sfx: sfxVolume, music: customMusicVolume })); }
