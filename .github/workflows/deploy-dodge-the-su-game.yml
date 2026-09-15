@@ -28,3 +28,15 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: deploy/dodge-the-su-game
           command: deploy
+          # Pinned explicitly - this is not a style preference. The action's
+          # own "v3" tag (above) is unrelated to the Wrangler CLI version it
+          # installs by default, and that default silently resolved to
+          # Wrangler 3.90.0, which predates `run_worker_first` entirely.
+          # Wrangler 3.x treats an unrecognized [assets] field as a
+          # non-fatal warning, not an error, so `wrangler deploy` exited 0
+          # and CI reported success on every deploy while run_worker_first
+          # silently did nothing - the actual cause of the gate bypass
+          # incident documented in dodge-the-su/GATE.md, not a caching bug.
+          # Pin a specific version (not a floating "4") so this can't
+          # silently drift again in either direction.
+          wranglerVersion: '4.132.0'
