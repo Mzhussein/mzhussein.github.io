@@ -60,7 +60,7 @@ spot):
   not have existed.
 - `no3.wav` (a third taunt voice line) exists as an extracted asset but
   was never actually wired to any trigger in the original - kept
-  available under `assets/audio/` for the remaster pass rather than
+  available under `assets/v2/audio/` for the remaster pass rather than
   invented a use for it here.
 
 ## Music
