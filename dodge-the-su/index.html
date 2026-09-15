@@ -367,6 +367,10 @@
       git-commit, not a button here, on purpose.
     </div>
     <div class="settings-row">
+      <label for="sfxVolume">Sound effects volume</label>
+      <input type="range" id="sfxVolume" min="0" max="100" value="80">
+    </div>
+    <div class="settings-row">
       <label for="musicFileInput">Background music, just for you (MP3/OGG/M4A, loops automatically)</label>
       <input type="file" id="musicFileInput" accept="audio/*">
       <div class="settings-status" id="musicStatus"></div>
@@ -822,7 +826,30 @@
     rain: new Audio(ASSET_BASE + 'audio/rain.wav'),
   };
   let muted = false;
-  function playSfx(a){ if (muted) return; try { a.currentTime = 0; a.play().catch(() => {}); } catch (e) {} }
+  // SFX and music get independent volume sliders (settings panel) - both
+  // remembered per-browser via localStorage so they don't reset to
+  // defaults on every reload, same as how a personal music upload already
+  // persists via IndexedDB.
+  const VOLUME_KEY = 'dodge_the_su_volumes_v1';
+  function loadVolumePrefs(){
+    try {
+      const raw = JSON.parse(localStorage.getItem(VOLUME_KEY) || '{}');
+      return {
+        sfx: typeof raw.sfx === 'number' ? raw.sfx : 0.8,
+        music: typeof raw.music === 'number' ? raw.music : 0.5,
+      };
+    } catch (e) { return { sfx: 0.8, music: 0.5 }; }
+  }
+  function saveVolumePrefs(){
+    try { localStorage.setItem(VOLUME_KEY, JSON.stringify({ sfx: sfxVolume, music: customMusicVolume })); }
+    catch (e) { /* storage unavailable, ignore */ }
+  }
+  const volumePrefs = loadVolumePrefs();
+  let sfxVolume = volumePrefs.sfx;
+  function playSfx(a){
+    if (muted) return;
+    try { a.currentTime = 0; a.volume = sfxVolume; a.play().catch(() => {}); } catch (e) {}
+  }
   function stopSfx(a){ try { a.pause(); a.currentTime = 0; } catch (e) {} }
   function toggleMute(){
     muted = !muted;
@@ -844,7 +871,7 @@
   const DEFAULT_MUSIC_URL = ASSET_BASE + 'audio/bg-music.mp3';
   const customMusic = new Audio();
   customMusic.loop = true;
-  let customMusicVolume = 0.5;
+  let customMusicVolume = volumePrefs.music;
   customMusic.volume = customMusicVolume; // otherwise it defaults to 1.0 until someone opens settings
   const DB_NAME = 'dodge-the-su-settings', STORE = 'files';
   function openDb(){
@@ -918,9 +945,16 @@
     setMusicStatus('Loaded: ' + file.name, true);
     startMusic();
   });
+  document.getElementById('sfxVolume').value = Math.round(sfxVolume * 100);
+  document.getElementById('sfxVolume').addEventListener('input', (e) => {
+    sfxVolume = Number(e.target.value) / 100;
+    saveVolumePrefs();
+  });
+  document.getElementById('musicVolume').value = Math.round(customMusicVolume * 100);
   document.getElementById('musicVolume').addEventListener('input', (e) => {
     customMusicVolume = Number(e.target.value) / 100;
     customMusic.volume = muted ? 0 : customMusicVolume;
+    saveVolumePrefs();
   });
   document.getElementById('clearMusicBtn').addEventListener('click', async () => {
     stopMusic(); customMusic.removeAttribute('src'); customMusic.load();
